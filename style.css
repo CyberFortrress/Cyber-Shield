@@ -471,3 +471,154 @@ img, svg, canvas { max-width: 100%; }
     position: static;
     transform: none;
 }
+
+@media (max-width: 600px) {
+    .sidebar {
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        min-height: 64px;
+        padding: 0.35rem 0.65rem calc(0.35rem + env(safe-area-inset-bottom));
+    }
+
+    .sidebar-links {
+        min-width: 0;
+    }
+
+    .sidebar-links li {
+        margin: 0;
+    }
+
+    .sidebar-links a {
+        min-width: 40px;
+        min-height: 44px;
+        padding: 0.5rem;
+        font-size: 1rem;
+    }
+
+    .sidebar-footer-profile {
+        flex: none;
+    }
+
+    .main-content-wrapper {
+        padding-bottom: calc(80px + env(safe-area-inset-bottom));
+    }
+
+    .container-fluid {
+        padding: 1rem;
+    }
+
+    .glow-box,
+    .scanner-card {
+        padding: 1.1rem;
+    }
+
+    .section-welcome-banner h2,
+    .admin-top-banner h2 {
+        font-size: 1.4rem;
+    }
+
+    .admin-top-banner {
+        align-items: flex-start;
+    }
+
+    .stats-grid-admin,
+    .user-stats-bar {
+        gap: 0.8rem;
+    }
+
+    .charts-grid-two {
+        gap: 0.8rem;
+    }
+
+    .chart-wrap {
+        height: 260px;
+    }
+
+    .chart-wrap.tall {
+        height: 300px;
+    }
+
+    .ext-icon-row,
+    .switch-row {
+        gap: 0.75rem;
+    }
+
+    .browser-body {
+        min-height: 220px;
+        padding: 1.5rem 1rem;
+    }
+
+    #chat-widget-container {
+        bottom: calc(80px + env(safe-area-inset-bottom));
+        left: 12px;
+    }
+
+    #chat-box {
+        position: fixed;
+        right: 12px;
+        bottom: calc(148px + env(safe-area-inset-bottom));
+        left: 12px;
+        width: auto;
+        max-width: none;
+        height: min(480px, 65vh);
+    }
+
+    .modal-overlay {
+        padding: 12px;
+    }
+
+    .modal-card {
+        padding: 1.2rem;
+    }
+}
+
+@media (max-width: 400px) {
+    .top-header-bar {
+        gap: 0.6rem;
+        padding: 0.7rem 0.85rem;
+    }
+
+    .header-status-pill {
+        gap: 5px;
+        font-size: 0.76rem;
+    }
+
+    .header-live-badge {
+        padding: 4px 8px;
+        font-size: 0.72rem;
+    }
+
+    .auth-gate-container {
+        padding: 12px;
+    }
+
+    .auth-card {
+        padding: 1.5rem 1rem;
+    }
+
+    .demo-row {
+        gap: 8px;
+        padding: 8px;
+        font-size: 0.8rem;
+    }
+
+    .btn-fill {
+        padding: 4px 10px;
+    }
+
+    .sidebar {
+        padding-right: 0.4rem;
+        padding-left: 0.4rem;
+    }
+
+    .sidebar-links a {
+        min-width: 36px;
+        padding: 0.45rem 0.35rem;
+    }
+
+    #chat-box {
+        right: 8px;
+        left: 8px;
+    }
+}
