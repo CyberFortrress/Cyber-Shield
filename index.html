@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyber.Shield | Threat & Phishing Detection System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="jsQR.js"></script>
+    <script>
+        if (typeof jsQR === 'undefined') {
+            document.write('<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"><\/script>');
+        }
+    </script>
+</head>
+<body class="cyber-theme">
+    <!-- كارت الشات بوت العائم -->
+    <div id="chat-widget-container">
+        <button id="chat-toggle-btn" aria-label="فتح المساعد الذكي"><i class="fa-solid fa-robot"></i></button>
+        <div id="chat-box">
+            <div class="chat-head">
+                <span><i class="fa-solid fa-robot"></i> AI Assistant</span>
+                <button id="chat-close-btn" aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="chat-messages">
+                <div class="msg bot">أهلاً بك! أنا مساعدك الذكي AI Assistant جاهز للإجابة على أي استفسار سيبراني. كيف يمكنني مساعدتك اليوم؟</div>
+            </div>
+            <div class="chat-foot">
+                <input type="text" id="chat-input" placeholder="اسألني عن أي شيء... | Ask me anything...">
+                <button id="chat-send-btn" aria-label="إرسال"><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- خلفية سايبر -->
+    <div class="cyber-bg-overlay"></div>
+    <canvas id="cyberCanvas" aria-hidden="true"></canvas>
+
+    <!-- 1. شاشة تسجيل الدخول -->
+    <section id="authGateSection" class="auth-gate-container">
+        <div class="auth-card glow-box">
+            <div class="brand-header">
+                <div class="shield-badge-top"><i class="fa-solid fa-shield-halved"></i></div>
+                <h1>Cyber<span class="highlight"> Shield</span></h1>
+                <p>منصة الحماية السيبرانية </p>
+            </div>
+
+            <!-- نموذج الدخول -->
+            <div id="loginForm">
+                <div class="form-title-box">
+                    <i class="fa-solid fa-lock"></i> <h2>تسجيل الدخول</h2>
+                </div>
+                <form onsubmit="handleLogin(event)">
+                    <label class="input-label" for="loginUsername"> Username / Email</label>
+                    <div class="input-group">
+                        <i class="fa-solid fa-user"></i>
+                        <input type="text" id="loginUsername" autocomplete="username" placeholder="أدخل اسم المستخدم (مثال: a)" required>
+                    </div>
+                    <label class="input-label" for="loginPassword">Password</label>
+                    <div class="input-group">
+                        <i class="fa-solid fa-key"></i>
+                        <input type="password" id="loginPassword" autocomplete="current-password" placeholder="••••••••" required>
+                    </div>
+                    <button type="submit" class="btn-submit">تسجيل الدخول <i class="fa-solid fa-arrow-left"></i></button>
+                </form>
+                <p class="switch-form">ليس لديك حساب؟ <a href="#" onclick="switchForm('register')">انشئ حساباً جديداً</a></p>
+                
+                <!-- حسابات تجريبية سريعة -->
+                <div class="demo-accounts-box">
+                    <div class="demo-header">
+                        <i class="fa-solid fa-circle-info"></i> حسابات تجريبية سريعة :
+                        <span class="toggle-demo" onclick="toggleDemoBox()">إخفاء/إظهار</span>
+                    </div>
+                    <div id="demoContent" class="demo-content">
+                        <div class="demo-row">
+                            <span><i class="fa-solid fa-user" style="color: var(--accent-blue);"></i> الأدمن : <strong>a / 1</strong></span>
+                            <button type="button" class="btn-fill" onclick="fillDemo('a', '1')">تعبئة</button>
+                        </div>
+                        <div class="demo-row">
+                            <span><i class="fa-solid fa-user" style="color: var(--accent-blue);"></i> مستخدم : <strong>user / user123</strong></span>
+                            <button type="button" class="btn-fill" onclick="fillDemo('user', 'user123')">تعبئة</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- نموذج إنشاء الحساب -->
+            <div id="registerForm" style="display: none;">
+                <div class="form-title-box">
+                    <i class="fa-solid fa-user-plus"></i> <h2>Register</h2>
+                </div>
+                <form onsubmit="handleRegister(event)">
+                    <div class="input-group">
+                        <i class="fa-solid fa-user"></i>
+                        <input type="text" id="regUsername" placeholder="Full Name" required>
+                    </div>
+                    <div class="input-group">
+                        <i class="fa-solid fa-envelope"></i>
+                        <input type="email" id="regEmail" placeholder="Email" required>
+                    </div>
+                    <div class="input-group">
+                        <i class="fa-solid fa-key"></i>
+                        <input type="password" id="regPassword" autocomplete="new-password" placeholder="Password" required>
+                    </div>
+                    <button type="submit" class="btn-submit">Create Account <i class="fa-solid fa-check"></i></button>
+                </form>
+                <p class="switch-form">لديك حساب بالفعل؟ <a href="#" onclick="switchForm('login')">Login</a></p>
+            </div>
+        </div>
+    </section>
+
+    <!-- 2. لوحة التحكم الرئيسية -->
+    <div id="appMainLayout" style="display: none;" class="main-layout-grid">
+        
+        <!-- الشريط الجانبي الأيمن (Sidebar) -->
+        <aside class="sidebar">
+            <div class="sidebar-brand-wrapper">
+                <div class="pulse-shield-badge">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <div class="sidebar-brand" style="padding: 0; border: none;">
+                    <span>Cyber <span class="highlight"> Shield</span></span>
+                    <p>Online System</p>
+                </div>
+            </div>
+            
+            <div class="sidebar-menu-category">Main Menu </div>
+            <ul class="sidebar-links">
+                <li><a href="#" onclick="showSection('scannerSection')" class="active" id="navScanner"><i class="fa-solid fa-satellite-dish smart-radar-icon"></i><span>الفحص الذكي</span></a></li>
+                <li><a href="#" onclick="showSection('reportsSection')" id="navReports"><i class="fa-solid fa-chart-line"></i><span>سجل التقارير والتهديدات</span></a></li>
+            </ul>
+
+            <div class="sidebar-menu-category" id="adminCategory" style="display: none;"> Administration  </div>
+            <ul class="sidebar-links" id="adminLinks" style="display: none;">
+                <li><a href="#" onclick="showSection('adminSection')" id="navAdmin" style="display: none;"><i class="fa-solid fa-user-shield"></i><span>Dashboard</span></a></li>
+                <li><a href="#" onclick="showSection('extensionSection')" id="navExtension"><i class="fa-solid fa-puzzle-piece"></i><span>Extension Mgmt</span></a></li>
+            </ul>
+
+            <div class="sidebar-footer-profile">
+                <div class="profile-avatar-badge" id="sidebarUserBadgeIcon">Admin</div>
+                <div class="profile-info-text">
+                    <strong id="sidebarUserName">الأدمن</strong>
+                    <span id="sidebarUserRole">Admin</span>
+                </div>
+                <button class="btn-logout-icon" onclick="logout()" title="إنهاء الجلسة وتسجيل الخروج">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- المحتوى الرئيسي (Main Content Area) -->
+        <div class="main-content-wrapper">
+            
+            <header class="top-header-bar">
+                <div class="header-status-pill">
+                    <span class="status-dot"></span> الحالة: متصل ونشط
+                </div>
+                <div class="header-live-badge">
+                    <i class="fa-solid fa-shield-halved"></i> Secure  (100%)
+                </div>
+            </header>
+
+            <main class="container-fluid">
+
+                <!-- 1. الفحص الذكي الفوري -->
+                <section id="scannerSection" class="content-section">
+                    <div class="section-welcome-banner">
+                        <h2> Smart Radar & Scanner</h2>
+                        <p>مرحباً بك مجدداً. النظام يعمل بكفاءة تامة لكشف الاحتيال السيبراني والهندسة الاجتماعية.</p>
+                    </div>
+
+                    <!-- العدادات العلوية -->
+                    <div class="user-stats-bar">
+                        <div class="mini-stat-card glow-box border-red">
+                            <div>
+                                <h4> Threats</h4>
+                                <span class="counter-num red-text" id="userThreatScans">0</span>
+                            </div>
+                            <div class="stat-icon red"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                        </div>
+
+                        <div class="mini-stat-card glow-box border-green">
+                            <div>
+                                <h4> Safe Items</h4>
+                                <span class="counter-num green-text" id="userSafeScans">0</span>
+                            </div>
+                            <div class="stat-icon green"><i class="fa-solid fa-circle-check"></i></div>
+                        </div>
+
+                        <div class="mini-stat-card glow-box">
+                            <div>
+                                <h4> Total Scans</h4>
+                                <span class="counter-num" id="userTotalScans">0</span>
+                            </div>
+                            <div class="stat-icon total"><i class="fa-solid fa-list-check"></i></div>
+                        </div>
+                    </div>
+
+                    <!-- محطة التحليل الذكي المتقدم -->
+                    <div class="scanner-card glow-box">
+                        <div class="scanner-card-header">
+                            <i class="fa-solid fa-microchip"></i> AI Analysis Station
+                        </div>
+                        <p class="scanner-desc">اختر نوع الفحص المطلوب وقم بإدخال البيانات فوراً لتحليلها عبر نماذج الذكاء الاصطناعي.</p>
+                        
+                        <div class="scan-type-toggle">
+                            <button class="toggle-btn active" id="btnTabUrl" onclick="switchScanTab('url')">
+                                <i class="fa-solid fa-link"></i> رابط URL
+                            </button>
+                            <button class="toggle-btn" id="btnTabEmail" onclick="switchScanTab('email')">
+                                <i class="fa-solid fa-envelope-open-text"></i> Email
+                            </button>
+                            <button class="toggle-btn" id="btnTabQr" onclick="switchScanTab('qr')">
+                                <i class="fa-solid fa-qrcode"></i> QR Code
+                            </button>
+                        </div>
+
+                        <!-- رابط URL -->
+                        <div class="tab-content" id="urlTab">
+                            <div class="input-with-icon" style="position: relative;">
+                                <i class="fa-solid fa-globe"></i>
+                                <input type="text" id="urlInput" placeholder="أدخل رابط الموقع المشبوه (مثال: https://paypal-secure-login-verify.com)..." style="padding-left: 45px;">
+                                <button type="button" class="btn-paste-icon" onclick="pasteClipboard('urlInput')" title="لصق من الحافظة">
+                                    <i class="fa-solid fa-paste"></i>
+                                </button>
+                            </div>
+                            <button class="btn-scan" onclick="performScan('url')">
+                                <i class="fa-solid fa-shield-halved"></i>  Start Scan
+                            </button>
+                        </div>
+
+                        <!-- نص إيميل -->
+                        <div class="tab-content" id="emailTab" style="display: none;">
+                            <div class="textarea-container">
+                                <textarea id="emailInput" rows="5" placeholder="ألصق نص البريد الإلكتروني المشبوه هنا لفحصه..."></textarea>
+                                <button type="button" class="btn-clear-email" onclick="clearEmailInput()" title="مسح النص بالكامل">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                            <button class="btn-scan" onclick="performScan('email')">
+                                <i class="fa-solid fa-shield-halved"></i> Analyze Email AI
+                            </button>
+                        </div>
+
+                        <!-- QR Code -->
+                        <div class="tab-content" id="qrTab" style="display: none;">
+                            <div class="input-with-icon">
+                                <input type="file" id="qrImageInput" accept="image/*">
+                            </div>
+                            <div class="input-with-icon" style="margin-bottom: 1rem; position: relative;">
+                                <i class="fa-solid fa-qrcode"></i>
+                                <input type="text" id="qrTextInput" placeholder="أو أدخل محتوى الـ QR النصي مباشرة..." style="padding-left: 45px;">
+                                <button type="button" class="btn-paste-icon" onclick="pasteClipboard('qrTextInput')" title="لصق من الحافظة">
+                                    <i class="fa-solid fa-paste"></i>
+                                </button>
+                            </div>
+                            <button class="btn-scan" onclick="performScan('qr')">
+                                <i class="fa-solid fa-shield-halved"></i> Scan QR Code
+                            </button>
+                        </div>
+
+                        <div id="scanResult" class="scan-result-box" style="display: none; margin-top: 15px;"></div>
+                    </div>
+                </section>
+
+                <!-- 2. سجل التقارير والتهديدات -->
+                <section id="reportsSection" class="content-section" style="display: none;">
+                    <div class="section-welcome-banner">
+                        <h2>سجل التقارير والتهديدات </h2>
+                        <p>مرحباً بك مجدداً. النظام يعمل بكفاءة تامة لكشف الاحتيال السيبراني والهندسة الاجتماعية.</p>
+                    </div>
+
+                    <div class="charts-grid-two">
+                        <div class="chart-card glow-box">
+                            <h3><i class="fa-solid fa-chart-line"></i> معدل الفحوصات النشطة </h3>
+                            <div class="chart-wrap"><canvas id="activityChart"></canvas></div>
+                        </div>
+                        <div class="chart-card glow-box">
+                            <h3><i class="fa-solid fa-chart-pie"></i> نسبة التهديدات المكتشفة </h3>
+                            <div class="chart-wrap"><canvas id="threatsChart"></canvas></div>
+                        </div>
+                    </div>
+
+                    <!-- سجل عمليات الفحص السابق -->
+                    <div class="table-card glow-box" style="margin-top: 2rem;">
+                        <div class="table-header-flex">
+                            <h3><i class="fa-solid fa-clock-rotate-left"></i> سجل عمليات الفحص السابقة </h3>
+                            <button class="btn-clear-logs" onclick="clearLogs()"><i class="fa-solid fa-trash-can"></i> مسح السجل </button>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th> Element</th>
+                                    <th> Type</th>
+                                    <th> Result</th>
+                                    <th> Time</th>
+                                    <th> Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scanLogsTableBody">
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">لا توجد عمليات فحص مسجلة حتى الآن.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- 3. لوحة تحكم الأدمن المتقدمة -->
+                <section id="adminSection" class="content-section" style="display: none;">
+                    <div class="admin-top-banner">
+                        <div>
+                            <h2>Advanced Admin Dashboard</h2>
+                            <p>إدارة كامل مستخدمي النظام، صلاحيات الدخول، والإحصائيات السيبرانية.</p>
+                        </div>
+                        <span class="badge-admin-top"><i class="fa-solid fa-user-shield"></i> Super Admin Mode</span>
+                    </div>
+
+                    <div class="stats-grid-admin">
+                        <div class="stat-card glow-box">
+                            <div class="stat-info">
+                                <h3>Total Users</h3>
+                                <p class="stat-number" id="totalUsersCount">4</p>
+                                <span class="sub-stat-text">3+ مستخدمين جدد اليوم</span>
+                            </div>
+                            <div class="stat-icon users-icon"><i class="fa-solid fa-users"></i></div>
+                        </div>
+                        <div class="stat-card glow-box">
+                            <div class="stat-info">
+                                <h3>Global Scans</h3>
+                                <p class="stat-number" id="adminTotalScans">1,842</p>
+                                <span class="sub-stat-text">Active</span>
+                            </div>
+                            <div class="stat-icon total-scans"><i class="fa-solid fa-magnifying-glass"></i></div>
+                        </div>
+                        <div class="stat-card glow-box">
+                            <div class="stat-info">
+                                <h3>Blocked Threats</h3>
+                                <p class="stat-number threat" id="adminPhishingCount">328</p>
+                                <span class="sub-stat-text">حماية 99.8%</span>
+                            </div>
+                            <div class="stat-icon phishing-icon"><i class="fa-solid fa-shield-virus"></i></div>
+                        </div>
+                        <div class="stat-card glow-box">
+                            <div class="stat-info">
+                                <h3>Servers Status</h3>
+                                <p class="stat-number green-text">Online</p>
+                                <span class="sub-stat-text">استجابة 1ms</span>
+                            </div>
+                            <div class="stat-icon green"><i class="fa-solid fa-server"></i></div>
+                        </div>
+                    </div>
+
+                    <div class="chart-card glow-box" style="margin-bottom: 1.2rem;">
+                        <h3><i class="fa-solid fa-wave-square"></i> اتجاه الفحوصات والتهديدات</h3>
+                        <div class="chart-wrap tall"><canvas id="adminTrendChart"></canvas></div>
+                    </div>
+                    <div class="charts-grid-two" style="margin-top: 2rem;">
+                        <div class="chart-card glow-box">
+                            <h3><i class="fa-solid fa-chart-column"></i> Weekly Activity</h3>
+                            <div class="chart-wrap"><canvas id="adminWeeklyChart"></canvas></div>
+                        </div>
+                        <div class="chart-card glow-box">
+                            <h3><i class="fa-solid fa-chart-pie"></i> Threats Comparison</h3>
+                            <div class="chart-wrap"><canvas id="adminComparisonChart"></canvas></div>
+                        </div>
+                    </div>
+
+                    <div class="charts-grid-two" style="margin-top: 1.2rem;">
+                        <div class="chart-card glow-box">
+                            <h3><i class="fa-solid fa-heart-pulse"></i> System Health</h3>
+                            <div class="meter"><div class="meter-top"><span>دقة نموذج كشف الروابط (URL Model Accuracy)</span><b>98.7%</b></div><div class="meter-bar"><i style="width:98.7%"></i></div></div><div class="meter"><div class="meter-top"><span>دقة تحليل الإيميلات (Email Model Accuracy)</span><b>96.4%</b></div><div class="meter-bar"><i style="width:96.4%"></i></div></div><div class="meter"><div class="meter-top"><span>سعة الخوادم المتاحة (Server Capacity)</span><b>82%</b></div><div class="meter-bar"><i style="width:82%"></i></div></div><div class="meter"><div class="meter-top"><span>نجاح الاستجابة (API Success Rate)</span><b>99.2%</b></div><div class="meter-bar"><i style="width:99.2%"></i></div></div>
+                        </div>
+                        <div class="chart-card glow-box">
+                            <h3><i class="fa-solid fa-bell"></i> Recent Alerts</h3>
+                            <ul class="alert-feed">
+                                <li><span class="dot bad"></span><div><b>paypal-secure-login-verify.com</b><small>تصيد احتيالي | Phishing</small></div><em>منذ 3 دقائق</em></li>
+                                <li><span class="dot bad"></span><div><b>bank-account-update.net</b><small>انتحال جهة مصرفية | Spoofing</small></div><em>منذ 11 دقيقة</em></li>
+                                <li><span class="dot warn"></span><div><b>تحديث كلمة المرور فوراً (إيميل)</b><small>هندسة اجتماعية | Social Eng.</small></div><em>منذ 26 دقيقة</em></li>
+                                <li><span class="dot ok"></span><div><b>github.com</b><small>آمن | Safe</small></div><em>منذ 40 دقيقة</em></li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="table-card glow-box" style="margin-top: 2rem;">
+                        <div class="table-header-flex">
+                            <h3><i class="fa-solid fa-address-book"></i> Users Directory</h3>
+                            <button class="btn-scan" style="width: auto; padding: 0.5rem 1rem; font-size: 0.95rem;" onclick="openAddUserModal()"><i class="fa-solid fa-user-plus"></i> Add User</button>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th># ID</th>
+                                    <th>Username</th>
+                                    <th>Email</th>
+                                    <th>Joined</th>
+                                    <th>Role</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- 4. إضافة المتصفح -->
+                <section id="extensionSection" class="content-section" style="display: none;">
+                    <div class="admin-top-banner">
+                        <div>
+                            <h2> Browser Extension Management</h2>
+                            <p>خصّص أيقونة الإضافة ورسالة التحذير التي تظهر للمستخدمين عند رصد موقع خبيث، وشاهد الشكل النهائي مباشرة.</p>
+                        </div>
+                        <span class="badge-admin-top"><i class="fa-solid fa-user-shield"></i> Admin Only</span>
+                    </div>
+
+                    <div class="ext-layout">
+                        <div class="extension-control-card glow-box">
+                            <h3><i class="fa-solid fa-sliders"></i> Extension Settings</h3>
+                            <div class="ext-setting">
+                                <label for="extIconInput">Extension Icon</label>
+                                <div class="ext-icon-row">
+                                    <div class="ext-icon-preview" id="extIconPreview"><i class="fa-solid fa-shield-halved"></i></div>
+                                    <input type="file" id="extIconInput" accept="image/*">
+                                </div>
+                            </div>
+                            <div class="ext-setting">
+                                <label for="extAlertMessageInput">رسالة التنبيه عند رصد خطر | Alert Message</label>
+                                <input type="text" id="extAlertMessageInput" value="تحذير! موقع خبيث تم حظره بواسطة Cyber PhishShield">
+                            </div>
+                            <div class="ext-toggles">
+                                <label class="switch-row"><span><b>الحماية الفورية أثناء التصفح | Real-time Protection</b><small>فحص كل رابط قبل فتحه</small></span><input type="checkbox" checked><i class="switch-ui"></i></label>
+                                <label class="switch-row"><span><b>حظر الصفحات الخبيثة تلقائية | Auto-block Malware</b><small>عرض صفحة تحذير بدلاً من الموقع</small></span><input type="checkbox" checked><i class="switch-ui"></i></label>
+                                <label class="switch-row"><span><b>إشعارات سطح المكتب | Desktop Notifications</b><small>تنبيه عند رصد تهديد جديد</small></span><input type="checkbox" ><i class="switch-ui"></i></label>
+                            </div>
+                            <button class="btn-scan" onclick="alert('تم حفظ وتطبيق إعدادات الإضافة ورفع الأيقونة بنجاح!')">
+                                <i class="fa-solid fa-floppy-disk"></i> حفظ وتطبيق الإعدادات | Save & Apply
+                            </button>
+                        </div>
+
+                        <div class="ext-preview glow-box">
+                            <h3><i class="fa-solid fa-eye"></i> Live Preview</h3>
+                            <div class="browser-mock">
+                                <div class="browser-bar"><span></span><span></span><span></span><div class="browser-url">https://paypal-secure-login-verify.com</div><div class="browser-ext" id="extPreviewIcon"><i class="fa-solid fa-shield-halved"></i></div></div>
+                                <div class="browser-body">
+                                    <div class="warn-card">
+                                        <i class="fa-solid fa-triangle-exclamation"></i>
+                                        <p id="extPreviewMsg">تحذير! موقع خبيث تم حظره بواسطة Cyber PhishShield</p>
+                                        <small>تم إيقاف تحميل الصفحة لحمايتك</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- نافذة إضافة مستخدم -->
+    <div id="addUserModal" class="modal-overlay" style="display:none;">
+        <div class="modal-card">
+            <h3><i class="fa-solid fa-user-plus"></i> إضافة مستخدم جديد</h3>
+            <input type="text" id="newUserName" placeholder="Full Name">
+            <input type="email" id="newUserEmail" placeholder="Email">
+            <input type="password" id="newUserPassword" autocomplete="new-password" placeholder="Password">
+            <select id="newUserRole"><option value="User">User</option><option value="Admin">Admin</option></select>
+            <div id="addUserError" class="modal-error"></div>
+            <div class="modal-actions">
+                <button class="btn-scan" style="width:auto;padding:.5rem 1.2rem;" onclick="submitAddUser()">حفظ</button>
+                <button class="btn-scan" style="width:auto;padding:.5rem 1.2rem;background:transparent;border:1px solid var(--border-color);color:var(--text-main);" onclick="closeAddUserModal()">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
