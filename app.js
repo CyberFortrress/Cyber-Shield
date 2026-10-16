@@ -8,6 +8,8 @@ if (typeof Chart !== 'undefined') {
 // حالة البيانات والمستخدم
 let userStats = { total: 0, safe: 0, threat: 0 };
 let currentUser = null;
+const SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+let lastSessionRefreshAt = 0;
 let scanLogsHistory = [];
 let chatHistory = [];
 let qrSource = 'text';   // آخر مصدر استخدمه المستخدم في تبويب QR: 'image' أو 'text'
@@ -19,13 +21,67 @@ const API = location.protocol === 'file:'
         ? `${location.protocol}//${location.hostname}:8000`
         : location.origin);
 
+const SECTION_PATHS = {
+    scannerSection: '/smart-scan',
+    cryptoLabSection: '/crypto-lab',
+    websiteAuditSection: '/website-scan',
+    adminSection: '/dashboard',
+    reportsSection: '/scan-history',
+    extensionSection: '/extension-management'
+};
+const PATH_SECTIONS = Object.fromEntries(Object.entries(SECTION_PATHS).map(([section, path]) => [path, section]));
+
+function setAppPath(path, replace = false) {
+    if (location.protocol === 'file:' || location.pathname === path) return;
+    history[replace ? 'replaceState' : 'pushState']({}, '', path);
+}
+
 function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// الجلسة: بتفضل محفوظة حتى لو قفلت الموقع (لحد ما تعمل Logout)
-function saveSession() { try { localStorage.setItem('ps_user', JSON.stringify(currentUser)); } catch (e) {} }
+// جلسة خاملة قصيرة: النشاط يجدد صلاحيتها، والرفريش يستعيدها ما دامت صالحة.
+function saveSession() {
+    if (!currentUser) return;
+    try {
+        localStorage.setItem('ps_user', JSON.stringify({ user: currentUser, expiresAt: Date.now() + SESSION_IDLE_TIMEOUT_MS }));
+    } catch (e) {}
+}
 function clearSession() { try { localStorage.removeItem('ps_user'); } catch (e) {} }
+
+function refreshSessionOnActivity() {
+    if (!currentUser || Date.now() - lastSessionRefreshAt < 5000) return;
+    lastSessionRefreshAt = Date.now();
+    saveSession();
+}
+
+function restoreSavedSession() {
+    try {
+        const saved = JSON.parse(localStorage.getItem('ps_user') || 'null');
+        if (!saved?.user || !Number.isFinite(saved.expiresAt) || saved.expiresAt <= Date.now()) {
+            clearSession();
+            return null;
+        }
+        return saved.user;
+    } catch (e) {
+        clearSession();
+        return null;
+    }
+}
+
+setInterval(() => {
+    if (!currentUser) return;
+    try {
+        const saved = JSON.parse(localStorage.getItem('ps_user') || 'null');
+        if (!saved?.expiresAt || saved.expiresAt <= Date.now()) logout();
+    } catch (e) {
+        logout();
+    }
+}, 10000);
+
+['click', 'keydown', 'pointerdown', 'scroll', 'touchstart'].forEach(eventName => {
+    window.addEventListener(eventName, refreshSessionOnActivity, { passive: true });
+});
 
 function recomputeStats() {
     userStats.total = scanLogsHistory.length;
@@ -80,6 +136,7 @@ function switchForm(formType) {
         document.getElementById('loginForm').style.display = 'block';
         document.getElementById('registerForm').style.display = 'none';
     }
+    setAppPath(formType === 'register' ? '/register' : '/login');
 }
 
 // إظهار وإخفاء صندوق الحسابات التجريبية
@@ -115,6 +172,7 @@ async function handleLogin(event) {
 
         const data = await response.json();
         currentUser = data.user;
+        saveSession();
         await loadUserLogs();
 
         setupUserInterface();
@@ -125,6 +183,7 @@ async function handleLogin(event) {
                 role: user !== 'user' ? 'Admin' : 'User',
                 email: user !== 'user' ? 'admin@phishshield.com' : 'user@phishshield.com'
             };
+            saveSession();
             setupUserInterface();
             return;
         }
@@ -208,6 +267,7 @@ function logout() {
     document.getElementById('usersTableBody').innerHTML = '';
     document.getElementById('appMainLayout').style.display = 'none';
     document.getElementById('authGateSection').style.display = 'flex';
+    setAppPath('/login');
 }
 
 function switchScanTab(type) {
@@ -477,10 +537,11 @@ async function scanWebsite() {
         const findings = report.findings || [];
         const issueCount = findings.filter(item => item.severity !== 'info').length;
         const riskArabic = { High: 'مرتفع', Moderate: 'متوسط', Low: 'منخفض' }[report.risk] || 'غير محدد';
-        const findingCards = findings.length ? findings.map(item => `<article class="website-finding ${escapeHtml(item.severity)}"><div class="website-finding-title"><span>${escapeHtml(item.severity.toUpperCase())}</span><h4>${escapeHtml(item.title)}</h4></div><div class="website-finding-section"><b>What was detected</b><p>${escapeHtml(item.evidence)}</p></div><div class="website-finding-section fix"><b>Recommended fix</b><p>${escapeHtml(item.recommendation)}</p></div></article>`).join('') : '<article class="website-finding info"><h4>No issues found by these checks</h4><p>This result covers only the passive checks listed in the scan scope. It does not prove that the website has no vulnerabilities.</p></article>';
-        const arabicCards = findings.length ? findings.map(item => `<article class="website-arabic-finding ${escapeHtml(item.severity)}"><div class="website-finding-title"><span>${{ critical: 'حرجة', high: 'مرتفعة', medium: 'متوسطة', low: 'منخفضة', info: 'معلومة' }[item.severity] || 'ملاحظة'}</span><h4>${escapeHtml(item.title_ar || item.title)}</h4></div><div><b>ما هي؟</b><p>${escapeHtml(item.what_ar || item.evidence)}</p></div><div><b>ما تأثيرها؟</b><p>${escapeHtml(item.impact_ar || '')}</p></div><div><b>ما الحل؟</b><p>${escapeHtml(item.recommendation_ar || item.recommendation)}</p></div></article>`).join('') : '<article class="website-arabic-finding info"><h4>لم تظهر ملاحظات</h4><p>هذا يعني أن الفحوصات المحدودة لم تكتشف مشكلة، ولا يؤكد خلو الموقع من كل أنواع الثغرات.</p></article>';
+        const findingCards = findings.length ? findings.map(item => `<article class="website-finding ${escapeHtml(item.severity)}"><div class="website-finding-title"><span>${escapeHtml(item.severity.toUpperCase())}</span><h4>${escapeHtml(item.title)}</h4></div><div class="website-finding-section"><b>What it is</b><p>${escapeHtml(item.description)}</p></div><div class="website-finding-section"><b>Potential impact</b><p>${escapeHtml(item.impact)}</p></div><div class="website-finding-section"><b>How it was detected</b><p>${escapeHtml(item.detection_method)} ${escapeHtml(item.evidence)}</p></div><div class="website-finding-section fix"><b>Recommended fix</b><p>${escapeHtml(item.recommendation)}</p></div><small class="audit-cwe">${escapeHtml(item.cwe || '')}</small></article>`).join('') : '<article class="website-finding info"><h4>No issues found by these checks</h4><p>This result covers only the passive checks listed in the scan scope. It does not prove that the website has no vulnerabilities.</p></article>';
+        const arabicCards = findings.length ? findings.map(item => `<article class="website-arabic-finding ${escapeHtml(item.severity)}"><div class="website-finding-title"><span>${{ critical: 'حرجة', high: 'مرتفعة', medium: 'متوسطة', low: 'منخفضة', info: 'معلومة' }[item.severity] || 'ملاحظة'}</span><h4>${escapeHtml(item.title_ar || item.title)}</h4></div><div><b>ما هي؟</b><p>${escapeHtml(item.what_ar || item.description || item.evidence)}</p></div><div><b>ما تأثيرها؟</b><p>${escapeHtml(item.impact_ar || item.impact || '')}</p></div><div><b>كيف اكتشفها الفحص؟</b><p>${escapeHtml(item.detection_method || '')} ${escapeHtml(item.evidence)}</p></div><div><b>ما الحل؟</b><p>${escapeHtml(item.recommendation_ar || item.recommendation)}</p></div><small class="audit-cwe">${escapeHtml(item.cwe || '')}</small></article>`).join('') : '<article class="website-arabic-finding info"><h4>لم تظهر ملاحظات في الفحوصات المنفذة</h4><p>النتيجة لا تؤكد خلو الموقع من جميع أنواع الثغرات.</p></article>';
+        const coverageList = (report.checks_available || []).map(check => `<li><b>${escapeHtml(check.name)}</b><span>${escapeHtml(check.method)}</span></li>`).join('');
         resultBox.innerHTML = `<div class="website-audit-summary"><div><span class="website-risk ${riskClass}">Overall risk: ${escapeHtml(report.risk)}</span><h3>${issueCount ? `${issueCount} finding${issueCount === 1 ? '' : 's'} to review` : 'No issues found by these checks'}</h3><p dir="ltr">${escapeHtml(report.url)} · HTTP ${escapeHtml(report.status_code)}</p></div><i class="fa-solid fa-shield-halved"></i></div>` +
-            `<div class="website-audit-report-layout"><section class="website-audit-findings"><h3><i class="fa-solid fa-list-check"></i> Security Findings</h3>${findingCards}</section><aside class="website-audit-arabic" dir="rtl"><h3><i class="fa-solid fa-language"></i> ملخص وشرح بالعربي</h3><div class="arabic-risk-summary">مستوى الخطورة العام: <strong>${riskArabic}</strong></div>${arabicCards}</aside></div><p class="website-audit-scope">${escapeHtml(report.scope || '')}</p>`;
+            `<div class="website-audit-report-layout"><section class="website-audit-findings"><h3><i class="fa-solid fa-list-check"></i> Security Findings</h3>${findingCards}</section><aside class="website-audit-arabic" dir="rtl"><h3><i class="fa-solid fa-language"></i> ملخص وشرح بالعربي</h3><div class="arabic-risk-summary">مستوى الخطورة العام: <strong>${riskArabic}</strong></div>${arabicCards}</aside></div><details class="audit-coverage"><summary>Checks included in this scan (${(report.checks_available || []).length})</summary><ul>${coverageList}</ul></details><p class="website-audit-scope">${escapeHtml(report.scope || '')}<br><span dir="rtl">${escapeHtml(report.scope_ar || '')}</span></p>`;
         document.getElementById('websiteAuditPlaceholder').style.display = 'none';
         resultBox.style.display = 'block';
         const highRisk = findings.some(item => item.severity === 'critical' || item.severity === 'high');
@@ -496,6 +557,7 @@ async function scanWebsite() {
 
 function showSection(sectionId) {
     if ((sectionId === 'adminSection' || sectionId === 'reportsSection' || sectionId === 'extensionSection') && (!currentUser || currentUser.role !== 'Admin')) sectionId = 'scannerSection';
+    setAppPath(SECTION_PATHS[sectionId] || '/smart-scan');
     const sections = ['scannerSection', 'reportsSection', 'cryptoLabSection', 'websiteAuditSection', 'adminSection', 'extensionSection'];
     sections.forEach(sec => {
         document.getElementById(sec).style.display = (sec === sectionId) ? 'block' : 'none';
@@ -517,6 +579,30 @@ function showSection(sectionId) {
         startAdminLive();
     }
 }
+
+function restoreRouteFromAddress() {
+    const path = location.pathname.replace(/\/$/, '') || '/';
+    if (path === '/register') {
+        switchForm('register');
+        return;
+    }
+    if (!currentUser) {
+        switchForm('login');
+        setAppPath('/login', true);
+        return;
+    }
+    showSection(PATH_SECTIONS[path] || 'scannerSection');
+}
+
+window.addEventListener('popstate', () => {
+    if (!currentUser) {
+        document.getElementById('appMainLayout').style.display = 'none';
+        document.getElementById('authGateSection').style.display = 'flex';
+        switchForm(location.pathname === '/register' ? 'register' : 'login');
+        return;
+    }
+    showSection(PATH_SECTIONS[location.pathname] || 'scannerSection');
+});
 
 /* ===== رسومات الداشبورد الحية (الرسم البياني فقط هو اللي بيتحرك) ===== */
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -938,10 +1024,17 @@ document.addEventListener('DOMContentLoaded', () => {
     size(); addEventListener('resize', () => { size(); if (still) draw(); }); draw();
 })();
 
-// تنظيف أي جلسة قديمة كانت متخزنة، عشان صفحة تسجيل الدخول تظهر دايماً أول ما تفتح الموقع
-try { localStorage.removeItem('ps_user'); } catch (e) {}
-
 document.addEventListener('DOMContentLoaded', () => {
+    const requestedPath = location.pathname;
+    currentUser = restoreSavedSession();
+    if (currentUser) {
+        loadUserLogs().then(() => {
+            setupUserInterface();
+            showSection(PATH_SECTIONS[requestedPath] || 'scannerSection');
+        });
+    } else {
+        restoreRouteFromAddress();
+    }
     const img = document.getElementById('qrImageInput');
     const txt = document.getElementById('qrTextInput');
     if (img) img.addEventListener('change', () => { qrSource = 'image'; });

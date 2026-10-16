@@ -77,7 +77,7 @@
                     </div>
                     <button type="submit" class="btn-submit">تسجيل الدخول <i class="fa-solid fa-arrow-left"></i></button>
                 </form>
-                <p class="switch-form">ليس لديك حساب؟ <a href="#" onclick="switchForm('register')">انشئ حساباً جديداً</a></p>
+                <p class="switch-form">ليس لديك حساب؟ <a href="#" onclick="switchForm('register'); return false;">انشئ حساباً جديداً</a></p>
                 
                 <!-- حسابات تجريبية سريعة -->
                 <div class="demo-accounts-box">
@@ -118,7 +118,7 @@
                     </div>
                     <button type="submit" class="btn-submit">Create Account <i class="fa-solid fa-check"></i></button>
                 </form>
-                <p class="switch-form">لديك حساب بالفعل؟ <a href="#" onclick="switchForm('login')">Login</a></p>
+                <p class="switch-form">لديك حساب بالفعل؟ <a href="#" onclick="switchForm('login'); return false;">Login</a></p>
             </div>
         </div>
     </section>
@@ -141,18 +141,18 @@
             <div class="sidebar-menu-group main-menu-group">
                 <div class="sidebar-menu-category"><i class="fa-solid fa-layer-group"></i> Main Menu</div>
                 <ul class="sidebar-links">
-                    <li><a href="#" onclick="showSection('scannerSection')" class="active" id="navScanner" aria-label="Smart Scan" title="Smart Scan"><i class="fa-solid fa-satellite-dish smart-radar-icon"></i><span>Smart Scan</span></a></li>
-                    <li><a href="#" onclick="showSection('cryptoLabSection')" id="navCrypto" aria-label="Cryptography Lab" title="Cryptography Lab"><i class="fa-solid fa-key"></i><span>Cryptography Lab</span></a></li>
-                    <li><a href="#" onclick="showSection('websiteAuditSection')" id="navWebsiteAudit" aria-label="Website Scan" title="Website Scan"><i class="fa-solid fa-globe"></i><span>Website Scan</span></a></li>
+                    <li><a href="#" onclick="showSection('scannerSection'); return false;" class="active" id="navScanner" aria-label="Smart Scan" title="Smart Scan"><i class="fa-solid fa-satellite-dish smart-radar-icon"></i><span>Smart Scan</span></a></li>
+                    <li><a href="#" onclick="showSection('cryptoLabSection'); return false;" id="navCrypto" aria-label="Cryptography Lab" title="Cryptography Lab"><i class="fa-solid fa-key"></i><span>Cryptography Lab</span></a></li>
+                    <li><a href="#" onclick="showSection('websiteAuditSection'); return false;" id="navWebsiteAudit" aria-label="Website Scan" title="Website Scan"><i class="fa-solid fa-globe"></i><span>Website Scan</span></a></li>
                 </ul>
             </div>
 
             <div class="sidebar-menu-group admin-menu-group" id="adminMenuGroup" style="display: none;">
                 <div class="sidebar-menu-category" id="adminCategory"><i class="fa-solid fa-user-shield"></i> Administration</div>
                 <ul class="sidebar-links" id="adminLinks">
-                    <li><a href="#" onclick="showSection('adminSection')" id="navAdmin" aria-label="Dashboard" title="Dashboard" style="display: none;"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span></a></li>
-                    <li><a href="#" onclick="showSection('reportsSection')" id="navReports" aria-label="Scan History" title="Scan History"><i class="fa-solid fa-clock-rotate-left"></i><span>Scan History</span></a></li>
-                    <li><a href="#" onclick="showSection('extensionSection')" id="navExtension" aria-label="Extension Management" title="Extension Management"><i class="fa-solid fa-puzzle-piece"></i><span>Extension Management</span></a></li>
+                    <li><a href="#" onclick="showSection('adminSection'); return false;" id="navAdmin" aria-label="Dashboard" title="Dashboard" style="display: none;"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span></a></li>
+                    <li><a href="#" onclick="showSection('reportsSection'); return false;" id="navReports" aria-label="Scan History" title="Scan History"><i class="fa-solid fa-clock-rotate-left"></i><span>Scan History</span></a></li>
+                    <li><a href="#" onclick="showSection('extensionSection'); return false;" id="navExtension" aria-label="Extension Management" title="Extension Management"><i class="fa-solid fa-puzzle-piece"></i><span>Extension Management</span></a></li>
                 </ul>
             </div>
 
@@ -291,7 +291,7 @@
                     <div class="website-audit-layout">
                         <div class="scanner-card glow-box website-audit-card">
                             <div class="scanner-card-header"><i class="fa-solid fa-shield-halved"></i> Website Details</div>
-                            <p class="scanner-desc">Checks HTTPS, common security headers, server disclosure, and insecure page references. This passive check does not exploit vulnerabilities or submit forms.</p>
+                            <p class="scanner-desc">Runs a broad set of passive checks for transport security, browser protections, cookies, CORS, caching, forms, and page resources. It never exploits the target or submits forms.</p>
                             <label class="input-label" for="websiteAuditUrl">Website URL</label>
                             <div class="input-with-icon website-url-field"><i class="fa-solid fa-link"></i><input id="websiteAuditUrl" type="url" dir="ltr" placeholder="https://example.com"></div>
                             <label class="website-audit-consent"><input type="checkbox" id="websiteAuditAuthorized"> I own this website or have permission to assess it.</label>

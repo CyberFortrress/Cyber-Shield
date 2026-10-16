@@ -714,6 +714,13 @@ img, svg, canvas { max-width: 100%; }
 .website-arabic-finding > div b { font-size: .78rem; color: #d8d0ff; }
 .website-arabic-finding > div p { color: var(--text-muted); line-height: 1.7; margin: .28rem 0 0; }
 .website-audit-scope { margin: 1rem 0 0; line-height: 1.6; }
+.audit-cwe { display: block; margin-top: .7rem; color: var(--text-muted); direction: ltr; }
+.audit-coverage { margin-top: 1rem; padding: .9rem 1rem; border: 1px solid var(--border-color); border-radius: 12px; background: rgba(8,12,24,.4); }
+.audit-coverage summary { cursor: pointer; color: var(--text-main); font-weight: 600; }
+.audit-coverage ul { display: grid; gap: .55rem; margin: .8rem 0 0; padding-inline-start: 1.2rem; }
+.audit-coverage li { color: var(--text-muted); line-height: 1.6; }
+.audit-coverage li b, .audit-coverage li span { display: block; }
+.audit-coverage li b { color: var(--accent-blue); }
 .log-detail-btn { border: 0; background: transparent; color: var(--accent-blue); cursor: pointer; font: inherit; font-size: .78rem; text-decoration: underline; }
 .crypto-layout { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 1.2rem; align-items: start; }
 .crypto-cat-toggle { margin-bottom: 1rem; }
