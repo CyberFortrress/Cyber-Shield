@@ -177,17 +177,7 @@ async function handleLogin(event) {
 
         setupUserInterface();
     } catch (error) {
-        if (((user === 'admin' && pass === 'admin123') || (user === 'a' && pass === '1')) || (user === 'user' && pass === 'user123')) {
-            currentUser = {
-                name: user !== 'user' ? 'أحمد المسؤول' : 'مستخدم تجريبي',
-                role: user !== 'user' ? 'Admin' : 'User',
-                email: user !== 'user' ? 'admin@phishshield.com' : 'user@phishshield.com'
-            };
-            saveSession();
-            setupUserInterface();
-            return;
-        }
-        alert("تعذر الاتصال بالسيرفر المحلي! تأكد من تشغيل الـ Backend أو استخدام الحسابات التجريبية.");
+        alert("تعذر الاتصال بالباك إند. انتظر حتى يكتمل تشغيل السيرفر ثم جرّب تسجيل الدخول مرة أخرى.");
     }
 }
 
