@@ -8,6 +8,8 @@ if (typeof Chart !== 'undefined') {
 // حالة البيانات والمستخدم
 let userStats = { total: 0, safe: 0, threat: 0 };
 let currentUser = null;
+let currentBackendInstanceId = null;
+window.accountWorkspaceVersion = 0;
 const SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 let lastSessionRefreshAt = 0;
 let scanLogsHistory = [];
@@ -20,11 +22,45 @@ const API = location.protocol === 'file:'
     : (['5500', '3000', '8080'].includes(location.port)
         ? `${location.protocol}//${location.hostname}:8000`
         : location.origin);
+const EXTENSION_SETTINGS_API = `${API}/api/extension/settings`;
+
+let connectionCheckSequence = 0;
+function updateConnectionIndicator(online) {
+    document.body.classList.toggle('system-offline', !online);
+    const label = document.getElementById('systemConnectionLabel');
+    const status = document.getElementById('systemStatusText');
+    const badge = document.getElementById('connectionBadgeText');
+    if (label) label.textContent = window.CS_I18N?.t(online ? 'Online System' : 'Offline System') || (online ? 'Online System' : 'Offline System');
+    if (status) status.textContent = window.CS_I18N?.t(online ? 'Status: online and active' : 'Status: offline') || (online ? 'Status: online and active' : 'Status: offline');
+    if (badge) badge.textContent = window.CS_I18N?.t(online ? 'Secure' : 'Offline') || (online ? 'Secure' : 'Offline');
+}
+
+async function checkInternetConnection() {
+    const sequence = ++connectionCheckSequence;
+    if (!navigator.onLine) { updateConnectionIndicator(false); return; }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3500);
+    try {
+        await fetch('https://www.gstatic.com/generate_204', { mode: 'no-cors', cache: 'no-store', signal: controller.signal });
+        if (sequence === connectionCheckSequence) updateConnectionIndicator(true);
+    } catch (_) {
+        if (sequence === connectionCheckSequence) updateConnectionIndicator(false);
+    } finally { clearTimeout(timeout); }
+}
+
+window.addEventListener('online', checkInternetConnection);
+window.addEventListener('offline', () => updateConnectionIndicator(false));
+document.addEventListener('DOMContentLoaded', () => {
+    checkInternetConnection();
+    setInterval(checkInternetConnection, 30000);
+});
 
 const SECTION_PATHS = {
+    overviewSection: '/',
     scannerSection: '/smart-scan',
     cryptoLabSection: '/crypto-lab',
     websiteAuditSection: '/website-scan',
+    labSection: '/simulation-lab',
     adminSection: '/dashboard',
     reportsSection: '/scan-history',
     extensionSection: '/extension-management'
@@ -36,18 +72,131 @@ function setAppPath(path, replace = false) {
     history[replace ? 'replaceState' : 'pushState']({}, '', path);
 }
 
+function openLoginPage() {
+    document.getElementById('appMainLayout').style.display = 'none';
+    document.getElementById('appMainLayout').classList.remove('guest-layout');
+    document.getElementById('authGateSection').style.display = 'flex';
+    switchForm('login');
+    setAppPath('/login');
+}
+
+function goToPlatform() {
+    if (currentUser) showSection('scannerSection');
+    else openLoginPage();
+}
+
 function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+function openWebsiteAuditSimulation(demoId) {
+    if (!window.CyberLab || (demoId && !/^[a-z0-9-]+$/.test(String(demoId)))) return;
+    showSection('labSection');
+    window.CyberLab.open(demoId ? { demo: demoId } : {});
+}
+
+function applyExtensionOptionVisibility(setting, visible) {
+    const config = {
+        notifications_visible: ['extensionNotificationsOption', 'extensionNotificationsEnabled'],
+        warning_page_visible: ['extensionWarningOption', 'extensionWarningEnabled']
+    }[setting];
+    if (!config) return;
+    const [rowId, checkboxId] = config;
+    const row = document.getElementById(rowId);
+    const checkbox = document.getElementById(checkboxId);
+    const button = row?.querySelector('.extension-visibility-toggle');
+    if (!row || !button) return;
+    row.classList.toggle('extension-option-hidden', !visible);
+    button.setAttribute('aria-expanded', String(visible));
+    button.innerHTML = `<i class="fa-solid fa-chevron-${visible ? 'down' : 'up'}"></i>`;
+    const lang = window.CS_I18N?.lang || 'en';
+    const title = visible
+        ? (lang === 'ar' ? 'إخفاء هذا الخيار من إضافة Chrome' : 'Hide this option from Chrome extension')
+        : (lang === 'ar' ? 'إظهار هذا الخيار مجددًا في إضافة Chrome' : 'Restore this option in Chrome extension');
+    button.title = title;
+    button.setAttribute('aria-label', title);
+    if (checkbox) checkbox.dataset.extensionVisible = String(visible);
+}
+
+async function loadExtensionSettings() {
+    if (!document.getElementById('extensionSettingsSave')) return;
+    try {
+        const response = await fetch(EXTENSION_SETTINGS_API, { cache: 'no-store' });
+        const settings = await response.json();
+        if (!response.ok) throw new Error(settings.detail || 'Could not load extension settings.');
+        const message = document.getElementById('extAlertMessageInput');
+        if (message && document.activeElement !== message) message.value = settings.alert_message || '';
+        const preview = document.getElementById('extPreviewMsg');
+        if (preview && message) preview.textContent = message.value || ' ';
+        const notifications = document.getElementById('extensionNotificationsEnabled');
+        const warning = document.getElementById('extensionWarningEnabled');
+        if (notifications) notifications.checked = settings.notifications_enabled !== false;
+        if (warning) warning.checked = settings.warning_page_enabled !== false;
+        applyExtensionOptionVisibility('notifications_visible', settings.notifications_visible !== false);
+        applyExtensionOptionVisibility('warning_page_visible', settings.warning_page_visible !== false);
+    } catch (error) {
+        console.warn('Could not load shared extension settings:', error);
+    }
+}
+
+async function saveExtensionSettings(options = {}) {
+    const button = document.getElementById('extensionSettingsSave');
+    const payload = {
+        alert_message: document.getElementById('extAlertMessageInput')?.value || '',
+        notifications_enabled: document.getElementById('extensionNotificationsEnabled')?.checked !== false,
+        warning_page_enabled: document.getElementById('extensionWarningEnabled')?.checked !== false,
+        notifications_visible: document.getElementById('extensionNotificationsOption')?.classList.contains('extension-option-hidden') !== true,
+        warning_page_visible: document.getElementById('extensionWarningOption')?.classList.contains('extension-option-hidden') !== true
+    };
+    if (button) button.disabled = true;
+    try {
+        const response = await fetch(EXTENSION_SETTINGS_API, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || 'Could not save extension settings.');
+        if (!options.silent) alert(window.CS_I18N?.t('Saved successfully!') || 'Saved successfully!');
+        return result;
+    } catch (error) {
+        if (!options.silent) alert(error.message);
+        return null;
+    } finally {
+        if (button) button.disabled = false;
+    }
+}
+
 // جلسة خاملة قصيرة: النشاط يجدد صلاحيتها، والرفريش يستعيدها ما دامت صالحة.
 function saveSession() {
-    if (!currentUser) return;
+    if (!currentUser || !currentBackendInstanceId) return;
     try {
-        localStorage.setItem('ps_user', JSON.stringify({ user: currentUser, expiresAt: Date.now() + SESSION_IDLE_TIMEOUT_MS }));
+        localStorage.setItem('ps_user', JSON.stringify({
+            user: currentUser,
+            expiresAt: Date.now() + SESSION_IDLE_TIMEOUT_MS,
+            backendInstanceId: currentBackendInstanceId
+        }));
     } catch (e) {}
 }
 function clearSession() { try { localStorage.removeItem('ps_user'); } catch (e) {} }
+
+function resetAccountWorkspace() {
+    window.accountWorkspaceVersion++;
+    if (typeof window.clearCryptoWorkspace === 'function') window.clearCryptoWorkspace();
+    const url = document.getElementById('websiteAuditUrl');
+    if (url) url.value = '';
+    const consent = document.getElementById('websiteAuditAuthorized');
+    if (consent) consent.checked = false;
+    const result = document.getElementById('websiteAuditResult');
+    if (result) { result.innerHTML = ''; result.style.display = 'none'; }
+    const placeholder = document.getElementById('websiteAuditPlaceholder');
+    if (placeholder) placeholder.style.display = 'flex';
+    const error = document.getElementById('websiteAuditError');
+    if (error) { error.textContent = ''; error.style.display = 'none'; }
+    const button = document.getElementById('websiteAuditButton');
+    if (button) {
+        button.disabled = false;
+        button.innerHTML = '<i class="fa-solid fa-magnifying-glass-chart"></i> Run Website Scan';
+    }
+}
 
 function refreshSessionOnActivity() {
     if (!currentUser || Date.now() - lastSessionRefreshAt < 5000) return;
@@ -55,13 +204,31 @@ function refreshSessionOnActivity() {
     saveSession();
 }
 
-function restoreSavedSession() {
+async function getBackendInstanceId() {
+    try {
+        const response = await fetch(`${API}/api/status`, { cache: 'no-store' });
+        if (!response.ok) return null;
+        const status = await response.json();
+        return typeof status.instance_id === 'string' && status.instance_id ? status.instance_id : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+async function restoreSavedSession() {
     try {
         const saved = JSON.parse(localStorage.getItem('ps_user') || 'null');
-        if (!saved?.user || !Number.isFinite(saved.expiresAt) || saved.expiresAt <= Date.now()) {
+        if (!saved?.user || !Number.isFinite(saved.expiresAt) || saved.expiresAt <= Date.now() || !saved.backendInstanceId) {
             clearSession();
             return null;
         }
+        const liveInstanceId = await getBackendInstanceId();
+        if (!liveInstanceId) return null;
+        if (saved.backendInstanceId !== liveInstanceId) {
+            clearSession();
+            return null;
+        }
+        currentBackendInstanceId = liveInstanceId;
         return saved.user;
     } catch (e) {
         clearSession();
@@ -73,7 +240,7 @@ setInterval(() => {
     if (!currentUser) return;
     try {
         const saved = JSON.parse(localStorage.getItem('ps_user') || 'null');
-        if (!saved?.expiresAt || saved.expiresAt <= Date.now()) logout();
+        if (!saved?.expiresAt || saved.expiresAt <= Date.now() || saved.backendInstanceId !== currentBackendInstanceId) logout();
     } catch (e) {
         logout();
     }
@@ -110,6 +277,7 @@ function recordActivity(entry) {
     recomputeStats();
     updateCountersUI();
     renderLogsTable();
+    if (document.getElementById('reportsSection')?.style.display !== 'none') renderCharts();
 }
 
 // تحميل سجلات المستخدم من الداتابيز
@@ -171,7 +339,10 @@ async function handleLogin(event) {
         }
 
         const data = await response.json();
+        resetAccountWorkspace();
         currentUser = data.user;
+        currentBackendInstanceId = data.backend_instance_id || await getBackendInstanceId();
+        if (!currentBackendInstanceId) throw new Error('تعذر التحقق من تشغيل الباك إند الحالي.');
         saveSession();
         await loadUserLogs();
 
@@ -186,27 +357,26 @@ function setupUserInterface() {
     document.getElementById('appMainLayout').style.display = 'flex';
 
     document.getElementById('sidebarUserName').innerText = currentUser.name;
-    document.getElementById('sidebarUserRole').innerText = currentUser.role === 'Admin' ? 'مدير النظام (Admin)' : 'مستخدم (User)';
+    document.getElementById('sidebarUserRole').innerText = currentUser.role === 'Admin' ? 'Admin' : 'User';
     document.getElementById('sidebarUserBadgeIcon').innerText = currentUser.name.slice(0, 2);
 
+    // History is available to every signed-in account; admin-only tools stay role-gated.
+    document.getElementById('adminMenuGroup').style.display = currentUser.role === 'Admin' ? 'block' : 'none';
+    document.getElementById('adminLinks').style.display = 'block';
+    document.getElementById('navReports').style.display = 'flex';
+
     if (currentUser.role === "Admin") {
-        document.getElementById('adminMenuGroup').style.display = 'block';
-        document.getElementById('adminLinks').style.display = 'block';
         document.getElementById('navAdmin').style.display = 'flex';
-        document.getElementById('navReports').style.display = 'flex';
         document.getElementById('navExtension').style.display = 'flex';
         loadAdminPanel();
     } else {
-        document.getElementById('adminMenuGroup').style.display = 'none';
-        document.getElementById('adminLinks').style.display = 'none';
         document.getElementById('navAdmin').style.display = 'none';
-        document.getElementById('navReports').style.display = 'none';
         document.getElementById('navExtension').style.display = 'none';
     }
 
     updateCountersUI();
     renderLogsTable();
-    showSection('scannerSection');
+    showSection('overviewSection');
 }
 
 // إنشاء حساب جديد
@@ -239,8 +409,10 @@ async function handleRegister(event) {
 
 function logout() {
     clearSession();
+    resetAccountWorkspace();
     chatHistory = [];
     currentUser = null;
+    currentBackendInstanceId = null;
     userStats = { total: 0, safe: 0, threat: 0 };
     scanLogsHistory = [];
     ['urlInput', 'emailInput', 'qrTextInput', 'qrImageInput', 'loginUsername', 'loginPassword', 'regUsername', 'regEmail', 'regPassword'].forEach(id => {
@@ -255,9 +427,7 @@ function logout() {
     while (msgs.children.length > 1) msgs.lastChild.remove();
     document.getElementById('chat-box').style.display = 'none';
     document.getElementById('usersTableBody').innerHTML = '';
-    document.getElementById('appMainLayout').style.display = 'none';
-    document.getElementById('authGateSection').style.display = 'flex';
-    setAppPath('/login');
+    openLoginPage();
 }
 
 function switchScanTab(type) {
@@ -338,15 +508,16 @@ async function performScan(type) {
     let inputVal = "";
     let endpoint = "";
     const resultBox = document.getElementById('scanResult');
+    const tr = (value) => window.CS_I18N?.t(String(value)) || String(value);
 
     if (type === 'url') {
         inputVal = document.getElementById('urlInput').value.trim();
         endpoint = 'http://127.0.0.1:8000/predict/url';
-        if (!inputVal) { alert("يرجى إدخال الرابط أولاً!"); return; }
+        if (!inputVal) { alert(tr('Please enter a URL first.')); return; }
     } else if (type === 'email') {
         inputVal = document.getElementById('emailInput').value.trim();
         endpoint = 'http://127.0.0.1:8000/predict/email';
-        if (!inputVal) { alert("يرجى إدخال نص البريد الإلكتروني أولاً!"); return; }
+        if (!inputVal) { alert(tr('Please enter email text first.')); return; }
     } else if (type === 'qr') {
         const imageInput = document.getElementById('qrImageInput');
         const textInput = document.getElementById('qrTextInput').value.trim();
@@ -357,36 +528,36 @@ async function performScan(type) {
 
         if (!useImage && textInput) {
             inputVal = textInput;
-            qrSourceLabel = 'النص المكتوب يدوياً';
+            qrSourceLabel = 'Manually entered text';
         } else if (useImage) {
-            qrSourceLabel = 'الصورة: ' + imageInput.files[0].name;
+            qrSourceLabel = 'Image: ' + imageInput.files[0].name;
             resultBox.style.display = 'block';
-            resultBox.innerHTML = `<div class="verdict load"><i class="fa-solid fa-spinner fa-spin"></i> جاري فحص الصورة وقراءة محتوى الـ QR Code...</div>`;
+            resultBox.innerHTML = `<div class="verdict load"><i class="fa-solid fa-spinner fa-spin"></i> ${escapeHtml(tr('Scanning the image and reading its QR code...'))}</div>`;
             const qr = await extractQRFromImage(imageInput.files[0]);
             if (qr.error) {
                 const msgs = {
-                    lib: 'مكتبة قراءة الـ QR (jsQR) لم تُحمَّل. حمّل الملف jsQR.js وحطه في فولدر frontend بجانب index.html.',
-                    load: 'تعذر فتح الصورة. جرّب صيغة PNG أو JPG (صيغة HEIC غير مدعومة).',
-                    decode: 'حدث خطأ أثناء قراءة الصورة.',
-                    timeout: 'استغرقت القراءة وقتاً طويلاً. جرّب صورة أصغر.'
+                    lib: 'The QR reader library (jsQR) did not load. Make sure jsQR.js is available in the frontend folder.',
+                    load: 'The image could not be opened. Try PNG or JPG; HEIC is not supported.',
+                    decode: 'An error occurred while reading the image.',
+                    timeout: 'Reading took too long. Try a smaller image.'
                 };
-                resultBox.innerHTML = `<div class="verdict bad"><strong>${msgs[qr.error]}</strong></div>`;
+                resultBox.innerHTML = `<div class="verdict bad"><strong>${escapeHtml(tr(msgs[qr.error]))}</strong></div>`;
                 return;
             }
             if (!qr.data) {
-                resultBox.innerHTML = `<div class="verdict bad"><strong>لم يتم العثور على QR Code في هذه الصورة. جرّب صورة أوضح.</strong></div>`;
+                resultBox.innerHTML = `<div class="verdict bad"><strong>${escapeHtml(tr('No QR code was found in this image. Try a clearer image.'))}</strong></div>`;
                 return;
             }
             inputVal = qr.data;
         } else {
-            alert("يرجى رفع صورة QR Code أو إدخال محتواه النصي أولاً!");
+            alert(tr('Upload a QR image or enter its text first.'));
             return;
         }
         endpoint = 'http://127.0.0.1:8000/predict/qr';
     }
 
     resultBox.style.display = 'block';
-    resultBox.innerHTML = `<div class="verdict load"><i class="fa-solid fa-spinner fa-spin"></i> جاري التحليل بالذكاء الاصطناعي (AI Analyzing)...</div>`;
+    resultBox.innerHTML = `<div class="verdict load"><i class="fa-solid fa-spinner fa-spin"></i> ${escapeHtml(tr('AI analysis in progress...'))}</div>`;
 
     let isPhishing = false;
     let analysis = null;
@@ -398,13 +569,13 @@ async function performScan(type) {
         });
         if (!response.ok) {
             const err = await response.json().catch(() => ({}));
-            throw new Error(err.detail || 'خطأ في السيرفر');
+            throw new Error(err.detail || 'Server error');
         }
         analysis = await response.json();
         isPhishing = (analysis.result === "phishing" || analysis.is_phishing === true);
     } catch (e) {
         // مفيش نتيجة وهمية: لو السيرفر مش شغال بنقول كده بصراحة ومش بنسجّل الفحص
-        resultBox.innerHTML = `<div class="verdict bad"><i class="fa-solid fa-plug-circle-xmark"></i> <div><strong>تعذر إتمام الفحص.</strong> ${escapeHtml(e.message || '')} — تأكد إن الباك إند شغال على بورت 8000.</div></div>`;
+        resultBox.innerHTML = `<div class="verdict bad"><i class="fa-solid fa-plug-circle-xmark"></i> <div><strong>${escapeHtml(tr('The scan could not be completed.'))}</strong> ${escapeHtml(tr(e.message || ''))} — ${escapeHtml(tr('Make sure the backend is running on port 8000.'))}</div></div>`;
         return;
     }
 
@@ -412,16 +583,16 @@ async function performScan(type) {
     const flagged = (level !== 'safe');   // المشبوه بيتسجّل كتهديد برضه
     isPhishing = flagged;
     const decodedHtml = (type === 'qr')
-        ? `<div style="margin-top:8px; font-size:.85rem; opacity:.85;">المصدر: ${escapeHtml(qrSourceLabel)}<br>محتوى الـ QR المقروء: <code style="direction:ltr; display:inline-block; word-break:break-all;">${escapeHtml(inputVal)}</code></div>` : '';
+        ? `<div style="margin-top:8px; font-size:.85rem; opacity:.85;">${escapeHtml(tr('Source:'))} ${escapeHtml(tr(qrSourceLabel))}<br>${escapeHtml(tr('Decoded QR content:'))} <code style="direction:ltr; display:inline-block; word-break:break-all;">${escapeHtml(inputVal)}</code></div>` : '';
     const reasonsHtml = (analysis.reasons && analysis.reasons.length)
-        ? `<ul style="margin:8px 0 0; padding-inline-start:18px; font-size:.9rem; opacity:.9;">${analysis.reasons.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul>` : '';
-    const scoreHtml = (typeof analysis.score === 'number') ? ` <small>(درجة الخطورة: ${analysis.score}/100)</small>` : '';
+        ? `<ul style="margin:8px 0 0; padding-inline-start:18px; font-size:.9rem; opacity:.9;">${analysis.reasons.map(r => `<li>${escapeHtml(tr(r))}</li>`).join('')}</ul>` : '';
+    const scoreHtml = (typeof analysis.score === 'number') ? ` <small>(${escapeHtml(tr('Risk score:'))} ${analysis.score}/100)</small>` : '';
     if (level === 'phishing') {
-        resultBox.innerHTML = `<div class="verdict bad"><i class="fa-solid fa-triangle-exclamation"></i> <div><strong>تحذير: العنصر مشبوه (Phishing Threat)</strong>${scoreHtml}${reasonsHtml}${decodedHtml}</div></div>`;
+        resultBox.innerHTML = `<div class="verdict bad"><i class="fa-solid fa-triangle-exclamation"></i> <div><strong>${escapeHtml(tr('Warning: suspicious item (phishing threat)'))}</strong>${scoreHtml}${reasonsHtml}${decodedHtml}</div></div>`;
     } else if (level === 'suspicious') {
-        resultBox.innerHTML = `<div class="verdict warn"><i class="fa-solid fa-circle-exclamation"></i> <div><strong>مشكوك فيه — كن حذراً</strong>${scoreHtml}${reasonsHtml}${decodedHtml}</div></div>`;
+        resultBox.innerHTML = `<div class="verdict warn"><i class="fa-solid fa-circle-exclamation"></i> <div><strong>${escapeHtml(tr('Suspicious — use caution.'))}</strong>${scoreHtml}${reasonsHtml}${decodedHtml}</div></div>`;
     } else {
-        resultBox.innerHTML = `<div class="verdict good"><i class="fa-solid fa-circle-check"></i> <div><strong>العنصر يبدو آمناً (Safe)</strong>${scoreHtml}${reasonsHtml}${decodedHtml}</div></div>`;
+        resultBox.innerHTML = `<div class="verdict good"><i class="fa-solid fa-circle-check"></i> <div><strong>${escapeHtml(tr('This item appears safe.'))}</strong>${scoreHtml}${reasonsHtml}${decodedHtml}</div></div>`;
     }
 
     // حفظ السجل في الداتابيز (لو المستخدم له id)، وإلا بيتحفظ محلياً للجلسة بس
@@ -443,6 +614,7 @@ async function performScan(type) {
     recomputeStats();
     updateCountersUI();
     renderLogsTable();
+    if (document.getElementById('reportsSection')?.style.display !== 'none') renderCharts();
 }
 
 function renderLogsTable() {
@@ -493,6 +665,7 @@ async function deleteLog(idx) {
     }
     scanLogsHistory.splice(idx, 1);
     recomputeStats(); updateCountersUI(); renderLogsTable();
+    if (document.getElementById('reportsSection')?.style.display !== 'none') renderCharts();
 }
 
 async function clearLogs() {
@@ -501,9 +674,11 @@ async function clearLogs() {
     }
     scanLogsHistory = [];
     recomputeStats(); updateCountersUI(); renderLogsTable();
+    if (document.getElementById('reportsSection')?.style.display !== 'none') renderCharts();
 }
 
 async function scanWebsite() {
+    const workspaceVersion = window.accountWorkspaceVersion;
     const urlInput = document.getElementById('websiteAuditUrl');
     const consent = document.getElementById('websiteAuditAuthorized');
     const button = document.getElementById('websiteAuditButton');
@@ -522,73 +697,103 @@ async function scanWebsite() {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url })
         });
         const report = await response.json();
+        if (workspaceVersion !== window.accountWorkspaceVersion || !currentUser) return;
         if (!response.ok) throw new Error(report.detail || 'The website scan could not be completed.');
         const riskClass = String(report.risk || 'low').toLowerCase();
         const findings = report.findings || [];
         const issueCount = findings.filter(item => item.severity !== 'info').length;
         const riskArabic = { High: 'مرتفع', Moderate: 'متوسط', Low: 'منخفض' }[report.risk] || 'غير محدد';
-        const findingCards = findings.length ? findings.map(item => `<article class="website-finding ${escapeHtml(item.severity)}"><div class="website-finding-title"><span>${escapeHtml(item.severity.toUpperCase())}</span><h4>${escapeHtml(item.title)}</h4></div><div class="website-finding-section"><b>What it is</b><p>${escapeHtml(item.description)}</p></div><div class="website-finding-section"><b>Potential impact</b><p>${escapeHtml(item.impact)}</p></div><div class="website-finding-section"><b>How it was detected</b><p>${escapeHtml(item.detection_method)} ${escapeHtml(item.evidence)}</p></div><div class="website-finding-section fix"><b>Recommended fix</b><p>${escapeHtml(item.recommendation)}</p></div><small class="audit-cwe">${escapeHtml(item.cwe || '')}</small></article>`).join('') : '<article class="website-finding info"><h4>No issues found by these checks</h4><p>This result covers only the passive checks listed in the scan scope. It does not prove that the website has no vulnerabilities.</p></article>';
-        const arabicCards = findings.length ? findings.map(item => `<article class="website-arabic-finding ${escapeHtml(item.severity)}"><div class="website-finding-title"><span>${{ critical: 'حرجة', high: 'مرتفعة', medium: 'متوسطة', low: 'منخفضة', info: 'معلومة' }[item.severity] || 'ملاحظة'}</span><h4>${escapeHtml(item.title_ar || item.title)}</h4></div><div><b>ما هي؟</b><p>${escapeHtml(item.what_ar || item.description || item.evidence)}</p></div><div><b>ما تأثيرها؟</b><p>${escapeHtml(item.impact_ar || item.impact || '')}</p></div><div><b>كيف اكتشفها الفحص؟</b><p>${escapeHtml(item.detection_method || '')} ${escapeHtml(item.evidence)}</p></div><div><b>ما الحل؟</b><p>${escapeHtml(item.recommendation_ar || item.recommendation)}</p></div><small class="audit-cwe">${escapeHtml(item.cwe || '')}</small></article>`).join('') : '<article class="website-arabic-finding info"><h4>لم تظهر ملاحظات في الفحوصات المنفذة</h4><p>النتيجة لا تؤكد خلو الموقع من جميع أنواع الثغرات.</p></article>';
-        const coverageList = (report.checks_available || []).map(check => `<li><b>${escapeHtml(check.name)}</b><span>${escapeHtml(check.method)}</span></li>`).join('');
+        const simulationLink = (id, label) => id ? `<button type="button" class="audit-simulation-link" onclick="openWebsiteAuditSimulation('${escapeHtml(id)}')"><i class="fa-solid fa-flask"></i> ${label}</button>` : '';
+        const displayLevel = (level) => ({ info: 'Low', low: 'Low', medium: 'Medium', high: 'High', critical: 'High' }[String(level || '').toLowerCase()] || 'Low');
+        const arabicLevel = (level) => ({ Low: 'منخفض', Medium: 'متوسط', High: 'مرتفع' }[displayLevel(level)]);
+        const findingCards = findings.length ? findings.map((item, index) => `<article class="website-finding ${escapeHtml(displayLevel(item.severity).toLowerCase())}"><div class="audit-finding-row"><span class="audit-finding-number">${index + 1}</span><h4>${escapeHtml(item.title)}</h4><span class="audit-level ${escapeHtml(displayLevel(item.severity).toLowerCase())}">${displayLevel(item.severity)}</span></div></article>`).join('') : '<article class="website-finding info"><h4>No issues found by these checks</h4></article>';
+        const arabicCards = findings.length ? findings.map((item, index) => `<article class="website-arabic-finding ${escapeHtml(displayLevel(item.severity).toLowerCase())}"><div class="audit-finding-row"><span class="audit-finding-number">${index + 1}</span><h4>${escapeHtml(item.title_ar || item.title)}</h4><span class="audit-level ${escapeHtml(displayLevel(item.severity).toLowerCase())}">${arabicLevel(item.severity)}</span></div></article>`).join('') : '<article class="website-arabic-finding info"><h4>لم تظهر ملاحظات في الفحوصات المنفذة</h4></article>';
+        const coverageList = (report.checks_available || []).map((check, index) => `<li><span class="audit-finding-number">${index + 1}</span><b>${escapeHtml(check.name)}</b><span class="audit-level ${escapeHtml(String(check.severity).toLowerCase())}">${escapeHtml(check.severity)}</span>${simulationLink(check.demo_id, 'Open Simulation')}</li>`).join('');
         resultBox.innerHTML = `<div class="website-audit-summary"><div><span class="website-risk ${riskClass}">Overall risk: ${escapeHtml(report.risk)}</span><h3>${issueCount ? `${issueCount} finding${issueCount === 1 ? '' : 's'} to review` : 'No issues found by these checks'}</h3><p dir="ltr">${escapeHtml(report.url)} · HTTP ${escapeHtml(report.status_code)}</p></div><i class="fa-solid fa-shield-halved"></i></div>` +
-            `<div class="website-audit-report-layout"><section class="website-audit-findings"><h3><i class="fa-solid fa-list-check"></i> Security Findings</h3>${findingCards}</section><aside class="website-audit-arabic" dir="rtl"><h3><i class="fa-solid fa-language"></i> ملخص وشرح بالعربي</h3><div class="arabic-risk-summary">مستوى الخطورة العام: <strong>${riskArabic}</strong></div>${arabicCards}</aside></div><details class="audit-coverage"><summary>Checks included in this scan (${(report.checks_available || []).length})</summary><ul>${coverageList}</ul></details><p class="website-audit-scope">${escapeHtml(report.scope || '')}<br><span dir="rtl">${escapeHtml(report.scope_ar || '')}</span></p>`;
+            `<div class="website-audit-report-layout"><section class="website-audit-findings"><h3><i class="fa-solid fa-list-check"></i> Security Findings</h3>${findingCards}</section><aside class="website-audit-arabic" dir="rtl"><h3><i class="fa-solid fa-language"></i> نتائج الفحص</h3><div class="arabic-risk-summary">مستوى الخطورة العام: <strong>${riskArabic}</strong></div>${arabicCards}</aside></div>` +
+            `<div class="website-audit-simulation-cta"><p>Open the Simulation Lab to learn about these issues and their solutions.</p><p dir="rtl">افتح Simulation Lab لمعرفة تفاصيل هذه الثغرات وحلولها.</p><button type="button" class="audit-simulation-link" onclick="openWebsiteAuditSimulation()"><i class="fa-solid fa-flask"></i> Open Simulation Lab</button></div><details class="audit-coverage"><summary>Checks included in this scan (${(report.checks_available || []).length})</summary><ul>${coverageList}</ul></details>`;
         document.getElementById('websiteAuditPlaceholder').style.display = 'none';
         resultBox.style.display = 'block';
         const highRisk = findings.some(item => item.severity === 'critical' || item.severity === 'high');
         recordActivity(await saveActivityLog(report.url, 'WEBSEC', highRisk, report));
     } catch (error) {
+        if (workspaceVersion !== window.accountWorkspaceVersion || !currentUser) return;
         errorBox.textContent = error.message;
         errorBox.style.display = 'flex';
     } finally {
-        button.disabled = false;
-        button.innerHTML = '<i class="fa-solid fa-magnifying-glass-chart"></i> Run Website Scan';
+        if (workspaceVersion === window.accountWorkspaceVersion) {
+            button.disabled = false;
+            button.innerHTML = '<i class="fa-solid fa-magnifying-glass-chart"></i> Run Website Scan';
+        }
     }
 }
 
 function showSection(sectionId) {
-    if ((sectionId === 'adminSection' || sectionId === 'reportsSection' || sectionId === 'extensionSection') && (!currentUser || currentUser.role !== 'Admin')) sectionId = 'scannerSection';
+    if (!currentUser) { openLoginPage(); return; }
+    if ((sectionId === 'adminSection' || sectionId === 'extensionSection') && (!currentUser || currentUser.role !== 'Admin')) sectionId = 'scannerSection';
     setAppPath(SECTION_PATHS[sectionId] || '/smart-scan');
-    const sections = ['scannerSection', 'reportsSection', 'cryptoLabSection', 'websiteAuditSection', 'adminSection', 'extensionSection'];
+    document.getElementById('authGateSection').style.display = 'none';
+    const appLayout = document.getElementById('appMainLayout');
+    appLayout.style.display = 'flex';
+    appLayout.classList.toggle('guest-layout', !currentUser);
+    const statusPill = document.querySelector('.header-status-pill');
+    if (statusPill) statusPill.style.display = currentUser ? '' : 'none';
+    const overviewCta = document.querySelector('[data-overview-cta]');
+    if (overviewCta) overviewCta.textContent = 'Open Smart Scan';
+    const sections = ['overviewSection', 'scannerSection', 'reportsSection', 'cryptoLabSection', 'websiteAuditSection', 'labSection', 'adminSection', 'extensionSection'];
     sections.forEach(sec => {
         document.getElementById(sec).style.display = (sec === sectionId) ? 'block' : 'none';
     });
 
+    if (document.getElementById('navHome')) document.getElementById('navHome').classList.toggle('active', sectionId === 'overviewSection');
     document.getElementById('navScanner').classList.toggle('active', sectionId === 'scannerSection');
     document.getElementById('navReports').classList.toggle('active', sectionId === 'reportsSection');
     if (document.getElementById('navCrypto')) document.getElementById('navCrypto').classList.toggle('active', sectionId === 'cryptoLabSection');
     if (document.getElementById('navWebsiteAudit')) document.getElementById('navWebsiteAudit').classList.toggle('active', sectionId === 'websiteAuditSection');
+    if (document.getElementById('navLab')) document.getElementById('navLab').classList.toggle('active', sectionId === 'labSection');
     if (document.getElementById('navAdmin')) {
         document.getElementById('navAdmin').classList.toggle('active', sectionId === 'adminSection');
     }
     document.getElementById('navExtension').classList.toggle('active', sectionId === 'extensionSection');
+
+    if (sectionId === 'extensionSection') loadExtensionSettings();
 
     if (sectionId === 'reportsSection') {
         setTimeout(renderCharts, 100);
     } else if (sectionId === 'adminSection') {
         setTimeout(renderAdminCharts, 100);
         startAdminLive();
+    } else if (sectionId === 'labSection' && window.CyberLab) {
+        window.CyberLab.onShow();
     }
 }
 
 function restoreRouteFromAddress() {
     const path = location.pathname.replace(/\/$/, '') || '/';
     if (path === '/register') {
+        document.getElementById('appMainLayout').style.display = 'none';
+        document.getElementById('authGateSection').style.display = 'flex';
         switchForm('register');
         return;
     }
     if (!currentUser) {
-        switchForm('login');
-        setAppPath('/login', true);
+        document.getElementById('appMainLayout').style.display = 'none';
+        document.getElementById('authGateSection').style.display = 'flex';
+        switchForm(path === '/register' ? 'register' : 'login');
+        if (path !== '/register' && path !== '/login') setAppPath('/login', true);
         return;
     }
-    showSection(PATH_SECTIONS[path] || 'scannerSection');
+    showSection(PATH_SECTIONS[path] || 'overviewSection');
 }
 
 window.addEventListener('popstate', () => {
     if (!currentUser) {
-        document.getElementById('appMainLayout').style.display = 'none';
-        document.getElementById('authGateSection').style.display = 'flex';
-        switchForm(location.pathname === '/register' ? 'register' : 'login');
+        const path = location.pathname.replace(/\/$/, '') || '/';
+        if (path === '/login' || path === '/register') {
+            document.getElementById('appMainLayout').style.display = 'none';
+            document.getElementById('authGateSection').style.display = 'flex';
+            switchForm(path === '/register' ? 'register' : 'login');
+        } else openLoginPage();
         return;
     }
     showSection(PATH_SECTIONS[location.pathname] || 'scannerSection');
@@ -673,13 +878,86 @@ function lineSet(ctx, label, data, rgb) {
 
 function renderCharts() {
     const ctx1 = document.getElementById('activityChart');
-    if (ctx1 && !ctx1.chartInstance) {
+    const modules = [
+        { label: 'Smart Scan', types: new Set(['URL', 'EMAIL', 'QR']), color: '90,209,255' },
+        { label: 'Website Scan', types: new Set(['WEBSEC']), color: '155,140,255' },
+        { label: 'Cryptology Lab', types: new Set(['CRYPTO']), color: '61,220,151' }
+    ];
+    const now = new Date();
+    const days = Array.from({ length: 7 }, (_, index) => {
+        const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 6 + index));
+        return { key: day.toISOString().slice(0, 10), label: new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' }).format(day) };
+    });
+    const countsByModule = modules.map(() => new Map(days.map(day => [day.key, 0])));
+    let threatScans = 0;
+    let cleanScans = 0;
+    let cryptoOperations = 0;
+    scanLogsHistory.forEach(log => {
+        const type = String(log.type || '').toUpperCase();
+        const moduleIndex = modules.findIndex(module => module.types.has(type));
+        if (moduleIndex < 0) return;
+        const date = new Date(log.createdAt);
+        if (!Number.isNaN(date.getTime())) {
+            const key = date.toISOString().slice(0, 10);
+            const dayCounts = countsByModule[moduleIndex];
+            if (dayCounts.has(key)) dayCounts.set(key, dayCounts.get(key) + 1);
+        }
+        if (type === 'CRYPTO') {
+            cryptoOperations += 1;
+            return;
+        }
+        let detected = !!log.isPhishing;
+        if (type === 'WEBSEC') {
+            try {
+                const report = JSON.parse(log.details || '{}');
+                detected = (report.findings || []).some(item => String(item.severity || '').toLowerCase() !== 'info');
+            } catch (_) { /* Use the saved scan verdict when report details are unavailable. */ }
+        }
+        if (detected) threatScans += 1;
+        else cleanScans += 1;
+    });
+
+    if (ctx1) {
         const c = ctx1.getContext('2d');
-        ctx1.chartInstance = new Chart(c, { type: 'line', data: { labels: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء'], datasets: [lineSet(c, 'الفحوصات / Scans', [12, 28, 42, 30, 65], '90,209,255')] }, options: chartOpts() });
+        const labels = days.map(day => day.label);
+        const dailyBreakdown = days.map(day => modules.map((module, index) => countsByModule[index].get(day.key)));
+        const totals = dailyBreakdown.map(counts => counts.reduce((sum, count) => sum + count, 0));
+        const dataset = lineSet(c, 'Total Activity', totals, '90,209,255');
+        const activityOptions = chartOpts();
+        activityOptions.plugins.tooltip.callbacks = {
+            label(context) {
+                const counts = dailyBreakdown[context.dataIndex] || [0, 0, 0];
+                const total = totals[context.dataIndex] || 0;
+                const lines = [`Total Activity: ${total}`];
+                modules.forEach((module, index) => {
+                    const count = counts[index] || 0;
+                    const percent = total ? Math.round((count / total) * 100) : 0;
+                    lines.push(`${module.label}: ${count} (${percent}%)`);
+                });
+                return lines;
+            }
+        };
+        if (!ctx1.chartInstance) {
+            ctx1.chartInstance = new Chart(c, { type: 'line', data: { labels, datasets: [dataset] }, options: activityOptions });
+        } else {
+            ctx1.chartInstance.data.labels = labels;
+            ctx1.chartInstance.data.datasets = [dataset];
+            ctx1.chartInstance.options.plugins.tooltip.callbacks = activityOptions.plugins.tooltip.callbacks;
+            ctx1.chartInstance.update();
+        }
     }
     const ctx2 = document.getElementById('threatsChart');
-    if (ctx2 && !ctx2.chartInstance) {
-        ctx2.chartInstance = new Chart(ctx2.getContext('2d'), { type: 'doughnut', data: { labels: ['آمن ونظيف / Safe', 'تهديدات محظورة / Blocked'], datasets: [{ data: [1060, 180], backgroundColor: ['#3ddc97', '#ff5d7a'], borderWidth: 0, borderRadius: 6, spacing: 3, hoverOffset: 8 }] }, options: donutOpts() });
+    if (ctx2) {
+        const labels = ['Threats Detected', 'No Threat Detected', 'Cryptology Lab Operations'];
+        const values = [threatScans, cleanScans, cryptoOperations];
+        if (!ctx2.chartInstance) {
+            ctx2.chartInstance = new Chart(ctx2.getContext('2d'), { type: 'doughnut', data: { labels, datasets: [{ data: values, backgroundColor: ['#ff5d7a', '#3ddc97', '#9b8cff'], borderWidth: 0, borderRadius: 6, spacing: 3, hoverOffset: 8 }] }, options: donutOpts() });
+        } else {
+            ctx2.chartInstance.data.labels = labels;
+            ctx2.chartInstance.data.datasets[0].data = values;
+            ctx2.chartInstance.data.datasets[0].backgroundColor = ['#ff5d7a', '#3ddc97', '#9b8cff'];
+            ctx2.chartInstance.update();
+        }
     }
 }
 
@@ -820,7 +1098,46 @@ document.addEventListener('DOMContentLoaded', () => {
     let audioChunks = [];
 
     if (!(toggleBtn && chatBox)) return;
+    const chatWidget = document.getElementById('chat-widget-container');
+    let dragStart = null;
+    let dragged = false;
+    let suppressClick = false;
+    try {
+        const saved = JSON.parse(localStorage.getItem('cs_chat_position') || 'null');
+        if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+            chatWidget.style.left = `${Math.max(0, Math.min(innerWidth - 58, saved.x))}px`;
+            chatWidget.style.top = `${Math.max(0, Math.min(innerHeight - 58, saved.y))}px`;
+            chatWidget.style.right = 'auto'; chatWidget.style.bottom = 'auto';
+        }
+    } catch (_) {}
+    toggleBtn.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0) return;
+        dragStart = { x: event.clientX, y: event.clientY, left: chatWidget.getBoundingClientRect().left, top: chatWidget.getBoundingClientRect().top };
+        dragged = false;
+        toggleBtn.setPointerCapture?.(event.pointerId);
+    });
+    toggleBtn.addEventListener('pointermove', (event) => {
+        if (!dragStart) return;
+        const dx = event.clientX - dragStart.x, dy = event.clientY - dragStart.y;
+        if (!dragged && Math.hypot(dx, dy) < 6) return;
+        dragged = true;
+        event.preventDefault();
+        const x = Math.max(0, Math.min(innerWidth - chatWidget.offsetWidth, dragStart.left + dx));
+        const y = Math.max(0, Math.min(innerHeight - toggleBtn.offsetHeight, dragStart.top + dy));
+        Object.assign(chatWidget.style, { left: `${x}px`, top: `${y}px`, right: 'auto', bottom: 'auto' });
+    });
+    const finishDrag = () => {
+        if (dragged) {
+            const rect = chatWidget.getBoundingClientRect();
+            try { localStorage.setItem('cs_chat_position', JSON.stringify({ x: rect.left, y: rect.top })); } catch (_) {}
+            suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
+        }
+        dragStart = null;
+    };
+    toggleBtn.addEventListener('pointerup', finishDrag);
+    toggleBtn.addEventListener('pointercancel', finishDrag);
     toggleBtn.onclick = () => {
+        if (suppressClick) { suppressClick = false; return; }
         const open = chatBox.style.display !== 'flex';
         chatBox.style.display = open ? 'flex' : 'none';
         if (open) inputField?.focus();
@@ -973,9 +1290,18 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('DOMContentLoaded', () => {
     const msg = document.getElementById('extAlertMessageInput');
     const icon = document.getElementById('extIconInput');
+    document.querySelectorAll('.extension-visibility-toggle').forEach(button => {
+        button.addEventListener('click', () => {
+            const setting = button.dataset.extensionVisibility;
+            const visible = button.getAttribute('aria-expanded') === 'false';
+            applyExtensionOptionVisibility(setting, visible);
+        });
+    });
     if (msg) msg.addEventListener('input', () => { document.getElementById('extPreviewMsg').textContent = msg.value || ' '; });
     if (icon) icon.addEventListener('change', () => {
         const f = icon.files && icon.files[0];
+        const fileName = document.getElementById('extIconFileName');
+        if (fileName) fileName.textContent = f ? f.name : (window.CS_I18N?.t('No file chosen') || 'No file chosen');
         if (!f) return;
         const r = new FileReader();
         r.onload = e => ['extIconPreview', 'extPreviewIcon'].forEach(id => {
@@ -1014,19 +1340,23 @@ document.addEventListener('DOMContentLoaded', () => {
     size(); addEventListener('resize', () => { size(); if (still) draw(); }); draw();
 })();
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const requestedPath = location.pathname;
-    currentUser = restoreSavedSession();
+    currentUser = await restoreSavedSession();
     if (currentUser) {
         loadUserLogs().then(() => {
             setupUserInterface();
-            showSection(PATH_SECTIONS[requestedPath] || 'scannerSection');
+            showSection(PATH_SECTIONS[requestedPath] || 'overviewSection');
         });
     } else {
         restoreRouteFromAddress();
     }
     const img = document.getElementById('qrImageInput');
     const txt = document.getElementById('qrTextInput');
-    if (img) img.addEventListener('change', () => { qrSource = 'image'; });
+    if (img) img.addEventListener('change', () => {
+        qrSource = 'image';
+        const fileName = document.getElementById('qrImageFileName');
+        if (fileName) fileName.textContent = img.files?.[0]?.name || (window.CS_I18N?.t('No file selected') || 'No file selected');
+    });
     if (txt) txt.addEventListener('input', () => { qrSource = 'text'; });
 });

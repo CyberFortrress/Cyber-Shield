@@ -2,12 +2,34 @@
    Cryptography Lab — منطق واجهة معمل التشفير
    يجلب الفهرس من الخادم ويبني الحقول ديناميكياً حسب الخوارزمية
    ============================================================ */
-const CRYPTO_API = (location.protocol === 'file:' || ['5500', '3000', '8080'].includes(location.port)) ? 'http://127.0.0.1:8000' : location.origin;
+const CRYPTO_API = window.CRYPTO_API_BASE || ((location.protocol === 'file:' || ['5500', '3000', '8080'].includes(location.port)) ? 'http://127.0.0.1:8000' : location.origin);
 
 let cryptoCatalog = null;          // الفهرس القادم من الخادم
 let cryptoCategory = 'substitution';
 let cryptoAlgorithm = 'additive';
 let lastCryptoResult = '';         // آخر نتيجة لزر النسخ
+
+window.clearCryptoWorkspace = function () {
+    lastCryptoResult = '';
+    const text = document.getElementById('cryptoText');
+    if (text) text.value = '';
+    document.querySelectorAll('#cryptoParams input, #cryptoParams textarea').forEach(input => { input.value = ''; });
+    const fileInput = document.getElementById('cryptoFileInput');
+    if (fileInput) fileInput.value = '';
+    const filePassword = document.getElementById('cryptoFilePassword');
+    if (filePassword) filePassword.value = '';
+    ['cryptoResultCard', 'cryptoError'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.style.display = 'none';
+    });
+    ['cryptoResult', 'cryptoExtras', 'cryptoSteps'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.innerHTML = '';
+    });
+    const downloadWrap = document.getElementById('cryptoFileDownloadWrap');
+    if (downloadWrap) downloadWrap.style.display = 'none';
+    if (typeof window.clearCryptoFileResult === 'function') window.clearCryptoFileResult();
+};
 
 /* ---------- جلب الفهرس وبناء الواجهة ---------- */
 async function initCryptoLab() {
@@ -20,15 +42,38 @@ async function initCryptoLab() {
         if (tabs) tabs.innerHTML = `<div style="color:var(--accent-red);font-size:.9rem;padding:.6rem;">تعذر الاتصال بالخادم لتحميل المعمل: ${escapeHtml(e.message)}</div>`;
         return;
     }
+    // Keep the browser-only file algorithm available even when the API catalog
+    // is from an older backend process that has not been restarted yet.
+    const modernCategory = cryptoCatalog.categories.find(category => category.id === 'modern');
+    if (modernCategory) {
+        let fileAlgorithm = modernCategory.algorithms.find(algorithm => algorithm.id === 'file_aes_gcm');
+        if (!fileAlgorithm) {
+            fileAlgorithm = {
+                id: 'file_aes_gcm',
+                name: 'AES-256-GCM File Encryption',
+                name_ar: 'AES-256-GCM — تشفير الملفات الآمن',
+                sub: 'Authenticated encryption — تشفير موثّق للملفات',
+                desc: 'تشفير ملفات محلي داخل المتصفح مع كشف العبث بالبيانات. اختر ملفًا وكلمة مرور ثم استخدم أزرار التشفير أو فك التشفير.',
+                params: []
+            };
+            modernCategory.algorithms.unshift(fileAlgorithm);
+        }
+        fileAlgorithm.file_mode = true;
+    }
     renderCryptoCategories();
     selectCryptoCategory('substitution');
 }
 
 function renderCryptoCategories() {
     const tabs = document.getElementById('cryptoCategoryTabs');
+    const categoryNames = {
+        substitution: 'Classical — Substitution Ciphers',
+        transposition: 'Classical — Transposition Ciphers',
+        modern: 'Modern Ciphers & Hashing'
+    };
     tabs.innerHTML = cryptoCatalog.categories.map(c => `
         <button class="toggle-btn" id="cryptoCat_${c.id}" onclick="selectCryptoCategory('${c.id}')">
-            <i class="fa-solid ${c.icon}"></i> ${c.name_ar}
+            <i class="fa-solid ${c.icon}"></i> ${categoryNames[c.id] || c.name}
         </button>`).join('');
 }
 
@@ -52,6 +97,10 @@ function getCurrentAlgorithm() {
     return cat.algorithms.find(a => a.id === cryptoAlgorithm);
 }
 
+function isFileCryptoAlgorithm(algorithm = getCurrentAlgorithm()) {
+    return algorithm.id === 'file_aes_gcm' || algorithm.file_mode === true;
+}
+
 function selectCryptoAlgorithm(algId) {
     cryptoAlgorithm = algId;
     const cat = cryptoCatalog.categories.find(c => c.id === cryptoCategory);
@@ -68,12 +117,23 @@ function selectCryptoAlgorithm(algId) {
 
     // الحقول الديناميكية حسب المعلمات
     renderCryptoParams(alg);
+    const fileMode = isFileCryptoAlgorithm(alg);
+    document.getElementById('cryptoFileControls').style.display = fileMode ? 'block' : 'none';
+    document.getElementById('cryptoTextContainer').style.display = fileMode ? 'none' : '';
+    document.getElementById('cryptoTextLabel').style.display = fileMode ? 'none' : '';
+    document.getElementById('cryptoFileDownloadWrap').style.display = 'none';
+    document.getElementById('btnCopyResult').style.display = fileMode ? 'none' : '';
+    if (fileMode) {
+        setCryptoFileMode('encrypt');
+        document.getElementById('cryptoResultCard').style.display = 'none';
+    }
 
     // خوارزميات التجزئة: لا يوجد فك تشفير
     document.getElementById('btnDecrypt').style.display = alg.hash_only ? 'none' : '';
     document.getElementById('btnEncrypt').innerHTML = alg.hash_only
-        ? '<i class="fa-solid fa-fingerprint"></i> Hash | احسب البصمة'
-        : '<i class="fa-solid fa-lock"></i> Encrypt | تشفير';
+        ? '<i class="fa-solid fa-fingerprint"></i> Hash'
+        : '<i class="fa-solid fa-lock"></i> Encryption';
+    document.getElementById('btnDecrypt').innerHTML = '<i class="fa-solid fa-lock-open"></i> Decryption';
 
     // ملصق حقل النص
     document.getElementById('cryptoTextLabel').textContent =
@@ -117,7 +177,12 @@ function collectCryptoParams() {
 
 /* ---------- تنفيذ العملية عبر المسار الموحد ---------- */
 async function runCrypto(action) {
+    const workspaceVersion = window.accountWorkspaceVersion || 0;
     hideCryptoError();
+    if (isFileCryptoAlgorithm()) {
+        await processCryptoFile(action);
+        return;
+    }
     const text = document.getElementById('cryptoText').value;
     const alg = getCurrentAlgorithm();
 
@@ -142,6 +207,7 @@ async function runCrypto(action) {
             body: JSON.stringify({ algorithm: cryptoAlgorithm, action, text, params: collectCryptoParams() })
         });
         const data = await r.json();
+        if (workspaceVersion !== (window.accountWorkspaceVersion || 0) || !currentUser) return;
         if (!r.ok) throw new Error(data.detail || 'حدث خطأ غير متوقع في الخادم.');
         renderCryptoResult(data);
         if (typeof saveActivityLog === 'function' && typeof recordActivity === 'function') {
@@ -151,6 +217,7 @@ async function runCrypto(action) {
             recordActivity(entry);
         }
     } catch (e) {
+        if (workspaceVersion !== (window.accountWorkspaceVersion || 0) || !currentUser) return;
         showCryptoError(e.message);
         document.getElementById('cryptoResultCard').style.display = 'none';
     } finally {
@@ -164,6 +231,7 @@ function renderCryptoResult(data) {
     lastCryptoResult = data.result || '';
     const card = document.getElementById('cryptoResultCard');
     card.style.display = 'block';
+    document.getElementById('cryptoFileDownloadWrap').style.display = 'none';
 
     const actionBadge = data.action === 'encrypt'
         ? '<span class="pill">Encrypted | مشفّر</span>'

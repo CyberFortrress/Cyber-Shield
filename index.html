@@ -4,18 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cyber.Shield | Threat & Phishing Detection System</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="jsQR.js"></script>
-    <script>
-        if (typeof jsQR === 'undefined') {
-            document.write('<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"><\/script>');
-        }
-    </script>
+    <link rel="stylesheet" href="vendor/fonts/ibm-plex-sans-arabic.css">
+    <link rel="stylesheet" href="style.css?v=extension-management-sync-20261025-3">
+    <link rel="stylesheet" href="lab.css?v=simulation-lab-1">
+    <link rel="stylesheet" href="overview.css?v=overview-rework-2">
+    <link rel="stylesheet" href="vendor/fontawesome/all.min.css">
+    <script src="vendor/js/chart.umd.min.js"></script>
+    <script src="vendor/js/jsQR.js"></script>
 </head>
 <body class="cyber-theme">
     <!-- كارت الشات بوت العائم -->
@@ -51,7 +46,10 @@
     <canvas id="cyberCanvas" aria-hidden="true"></canvas>
 
     <!-- 1. شاشة تسجيل الدخول -->
-    <section id="authGateSection" class="auth-gate-container">
+    <section id="authGateSection" class="auth-gate-container" style="display:none;">
+        <div class="language-switch language-switch-login" role="group" aria-label="Language">
+            <button type="button" data-set-lang="en">EN</button><button type="button" data-set-lang="ar">AR</button>
+        </div>
         <div class="auth-card glow-box">
             <div class="brand-header">
                 <div class="shield-badge-top"><i class="fa-solid fa-shield-halved"></i></div>
@@ -134,24 +132,25 @@
                 </div>
                 <div class="sidebar-brand" style="padding: 0; border: none;">
                     <span>Cyber <span class="highlight"> Shield</span></span>
-                    <p>Online System</p>
+                    <p id="systemConnectionLabel">Online System</p>
                 </div>
             </div>
-            
             <div class="sidebar-menu-group main-menu-group">
                 <div class="sidebar-menu-category"><i class="fa-solid fa-layer-group"></i> Main Menu</div>
                 <ul class="sidebar-links">
+                    <li><a href="#" onclick="showSection('overviewSection'); return false;" id="navHome" aria-label="Overview" title="Overview"><i class="fa-solid fa-house"></i><span>Overview</span></a></li>
                     <li><a href="#" onclick="showSection('scannerSection'); return false;" class="active" id="navScanner" aria-label="Smart Scan" title="Smart Scan"><i class="fa-solid fa-satellite-dish smart-radar-icon"></i><span>Smart Scan</span></a></li>
-                    <li><a href="#" onclick="showSection('cryptoLabSection'); return false;" id="navCrypto" aria-label="Cryptography Lab" title="Cryptography Lab"><i class="fa-solid fa-key"></i><span>Cryptography Lab</span></a></li>
+                    <li><a href="#" onclick="showSection('cryptoLabSection'); return false;" id="navCrypto" aria-label="Cryptology Lab" title="Cryptology Lab"><i class="fa-solid fa-key"></i><span>Cryptology Lab</span></a></li>
                     <li><a href="#" onclick="showSection('websiteAuditSection'); return false;" id="navWebsiteAudit" aria-label="Website Scan" title="Website Scan"><i class="fa-solid fa-globe"></i><span>Website Scan</span></a></li>
+                    <li><a href="#" onclick="showSection('labSection'); return false;" id="navLab" aria-label="Simulation Lab" title="Simulation Lab"><i class="fa-solid fa-flask"></i><span>Simulation Lab</span></a></li>
+                    <li><a href="#" onclick="showSection('reportsSection'); return false;" id="navReports" aria-label="Scan History" title="Scan History"><i class="fa-solid fa-clock-rotate-left"></i><span>Scan History</span></a></li>
                 </ul>
             </div>
 
             <div class="sidebar-menu-group admin-menu-group" id="adminMenuGroup" style="display: none;">
-                <div class="sidebar-menu-category" id="adminCategory"><i class="fa-solid fa-user-shield"></i> Administration</div>
+                <div class="sidebar-menu-category"><i class="fa-solid fa-user-shield"></i> Administration</div>
                 <ul class="sidebar-links" id="adminLinks">
                     <li><a href="#" onclick="showSection('adminSection'); return false;" id="navAdmin" aria-label="Dashboard" title="Dashboard" style="display: none;"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span></a></li>
-                    <li><a href="#" onclick="showSection('reportsSection'); return false;" id="navReports" aria-label="Scan History" title="Scan History"><i class="fa-solid fa-clock-rotate-left"></i><span>Scan History</span></a></li>
                     <li><a href="#" onclick="showSection('extensionSection'); return false;" id="navExtension" aria-label="Extension Management" title="Extension Management"><i class="fa-solid fa-puzzle-piece"></i><span>Extension Management</span></a></li>
                 </ul>
             </div>
@@ -159,10 +158,10 @@
             <div class="sidebar-footer-profile">
                 <div class="profile-avatar-badge" id="sidebarUserBadgeIcon">Admin</div>
                 <div class="profile-info-text">
-                    <strong id="sidebarUserName">الأدمن</strong>
+                    <strong id="sidebarUserName">Admin</strong>
                     <span id="sidebarUserRole">Admin</span>
                 </div>
-                <button class="btn-logout-icon" onclick="logout()" title="إنهاء الجلسة وتسجيل الخروج">
+                <button class="btn-logout-icon" onclick="logout()" title="End session and sign out" aria-label="End session and sign out">
                     <i class="fa-solid fa-right-from-bracket"></i>
                 </button>
             </div>
@@ -172,21 +171,59 @@
         <div class="main-content-wrapper">
             
             <header class="top-header-bar">
-                <div class="header-status-pill">
-                    <span class="status-dot"></span> الحالة: متصل ونشط
-                </div>
                 <div class="header-live-badge">
-                    <i class="fa-solid fa-shield-halved"></i> Secure  (100%)
+                    <i class="fa-solid fa-shield-halved"></i> <span id="connectionBadgeText" data-l10n="secure">Secure</span>
+                </div>
+                <div class="header-status-pill">
+                    <span class="status-dot"></span> <span id="systemStatusText">Status: online and active</span>
+                </div>
+                <div class="language-switch" role="group" aria-label="Language">
+                    <button type="button" data-set-lang="en">EN</button><button type="button" data-set-lang="ar">AR</button>
                 </div>
             </header>
 
             <main class="container-fluid">
 
+                <section id="overviewSection" class="content-section overview-section" style="display:none;">
+                    <div class="overview-hero glow-box">
+                        <div class="overview-hero-copy">
+                            <span class="overview-eyebrow"><i class="fa-solid fa-shield-halved"></i> CYBER SHIELD · OVERVIEW</span>
+                            <h1>Understand the risk. Choose a safer next step.</h1>
+                            <p>Cyber Shield was created to make everyday cyber risks easier to recognize and respond to. It brings browser protection, practical checks and guided learning into one connected platform.</p>
+                            <button class="btn-scan overview-cta" type="button" onclick="goToPlatform()"><i class="fa-solid fa-arrow-right-to-bracket"></i> <span data-overview-cta>Open Smart Scan</span></button>
+                        </div>
+                        <div class="overview-hero-mark"><i class="fa-solid fa-shield-halved"></i><span>MADE FOR EVERYDAY SAFETY</span></div>
+                    </div>
+
+                    <div class="overview-section-heading"><span>01</span><div><h2>Why we built Cyber Shield</h2><p>People make security decisions every day, often without clear context or useful guidance. A convincing link, a hidden QR destination or a weak website setting can turn a routine action into a security incident.</p></div></div>
+                    <div class="overview-threat-grid">
+                        <article class="overview-mini-card"><i class="fa-solid fa-link"></i><h3>Deceptive links</h3><p>Lookalike addresses and unsafe destinations can trick people into exposing accounts or downloading harmful files.</p></article>
+                        <article class="overview-mini-card"><i class="fa-solid fa-envelope-open-text"></i><h3>Messages and QR codes</h3><p>Urgent messages and concealed QR destinations can hide scams in ordinary communication.</p></article>
+                        <article class="overview-mini-card"><i class="fa-solid fa-globe"></i><h3>Hard-to-see security gaps</h3><p>Website settings and unfamiliar vulnerability patterns are difficult to assess without clear, practical explanations.</p></article>
+                    </div>
+
+                    <div class="overview-section-heading"><span>02</span><div><h2>How the platform helps</h2><p>Each part addresses a different step: notice a risk, understand what it means, and learn how safer systems are built.</p></div></div>
+                    <div class="overview-feature-grid">
+                        <article class="overview-feature-card"><div class="overview-feature-icon"><i class="fa-brands fa-chrome"></i></div><div><h3>Chrome Extension</h3><p>Checks browsing links and can warn about or block destinations identified as harmful.</p><span class="overview-tag">BROWSER PROTECTION</span></div></article>
+                        <article class="overview-feature-card"><div class="overview-feature-icon"><i class="fa-solid fa-satellite-dish"></i></div><div><h3>Smart Scan</h3><p>Reviews links, email text and QR codes for warning signs, then presents the result in a clear format.</p><span class="overview-tag">URL · EMAIL · QR</span></div></article>
+                        <article class="overview-feature-card"><div class="overview-feature-icon"><i class="fa-solid fa-globe"></i></div><div><h3>Website Scan</h3><p>Checks observable website security signals and explains findings, potential impact and recommended fixes.</p><span class="overview-tag">WEBSITE REVIEW</span></div></article>
+                        <article class="overview-feature-card"><div class="overview-feature-icon"><i class="fa-solid fa-key"></i></div><div><h3>Cryptology Lab</h3><p>Explore classical and modern encryption, decryption and hashing with guided examples and file workflows.</p><span class="overview-tag">LEARN BY DOING</span></div></article>
+                        <article class="overview-feature-card"><div class="overview-feature-icon"><i class="fa-solid fa-flask"></i></div><div><h3>Simulation Lab</h3><p>Study common web vulnerability classes in isolated demonstrations, compare vulnerable and safer patterns, and review mitigations.</p><span class="overview-tag">SAFE PRACTICE</span></div></article>
+                    </div>
+
+                    <div class="overview-section-heading"><span>03</span><div><h2>Our goal</h2><p>Our goal is to make cybersecurity clearer, more practical and easier to use. We want people to recognize warning signs before they act, understand why a finding matters, and know what safer next step they can take.</p></div></div>
+                    <div class="overview-goal-grid">
+                        <article class="overview-mini-card"><i class="fa-solid fa-eye"></i><h3>Earlier awareness</h3><p>Help users notice suspicious links, messages and website signals before they become harmful actions.</p></article>
+                        <article class="overview-mini-card"><i class="fa-solid fa-compass"></i><h3>Clearer decisions</h3><p>Explain what a result means, what its limits are, and which practical response is appropriate.</p></article>
+                        <article class="overview-mini-card"><i class="fa-solid fa-graduation-cap"></i><h3>Safer learning</h3><p>Build confidence through guided cryptology and isolated security simulations that connect concepts with real defensive habits.</p></article>
+                    </div>
+                </section>
+
                 <!-- 1. الفحص الذكي الفوري -->
                 <section id="scannerSection" class="content-section">
                     <div class="section-welcome-banner">
-                        <h2> Smart Radar & Scanner</h2>
-                        <p>مرحباً بك مجدداً. النظام يعمل بكفاءة تامة لكشف الاحتيال السيبراني والهندسة الاجتماعية.</p>
+                        <h2> Smart Scan</h2>
+                        <p>Welcome back. Cyber Shield is ready to check links, email content and QR codes for signs of online threats.</p>
                     </div>
 
                     <!-- العدادات العلوية -->
@@ -219,13 +256,13 @@
                     <!-- محطة التحليل الذكي المتقدم -->
                     <div class="scanner-card glow-box">
                         <div class="scanner-card-header">
-                            <i class="fa-solid fa-microchip"></i> AI Analysis Station
+                                <i class="fa-solid fa-microchip"></i> AI Analysis
                         </div>
-                        <p class="scanner-desc">اختر نوع الفحص المطلوب وقم بإدخال البيانات فوراً لتحليلها عبر نماذج الذكاء الاصطناعي.</p>
+                        <p class="scanner-desc">Choose a scan type, enter the content, and review the signals identified by the analysis.</p>
                         
                         <div class="scan-type-toggle">
                             <button class="toggle-btn active" id="btnTabUrl" onclick="switchScanTab('url')">
-                                <i class="fa-solid fa-link"></i> رابط URL
+                                <i class="fa-solid fa-link"></i> Link
                             </button>
                             <button class="toggle-btn" id="btnTabEmail" onclick="switchScanTab('email')">
                                 <i class="fa-solid fa-envelope-open-text"></i> Email
@@ -239,7 +276,7 @@
                         <div class="tab-content" id="urlTab">
                             <div class="input-with-icon" style="position: relative;">
                                 <i class="fa-solid fa-globe"></i>
-                                <input type="text" id="urlInput" placeholder="أدخل رابط الموقع المشبوه (مثال: https://paypal-secure-login-verify.com)..." style="padding-left: 45px;">
+                                <input type="text" id="urlInput" placeholder="Enter the suspicious website URL to scan..." style="padding-left: 45px;">
                                 <button type="button" class="btn-paste-icon" onclick="pasteClipboard('urlInput')" title="لصق من الحافظة">
                                     <i class="fa-solid fa-paste"></i>
                                 </button>
@@ -252,7 +289,7 @@
                         <!-- نص إيميل -->
                         <div class="tab-content" id="emailTab" style="display: none;">
                             <div class="textarea-container">
-                                <textarea id="emailInput" rows="5" placeholder="ألصق نص البريد الإلكتروني المشبوه هنا لفحصه..."></textarea>
+                                <textarea id="emailInput" rows="5" placeholder="Paste the suspicious email content here to scan it..."></textarea>
                                 <button type="button" class="btn-clear-email" onclick="clearEmailInput()" title="مسح النص بالكامل">
                                     <i class="fa-solid fa-xmark"></i>
                                 </button>
@@ -264,12 +301,13 @@
 
                         <!-- QR Code -->
                         <div class="tab-content" id="qrTab" style="display: none;">
-                            <div class="input-with-icon">
-                                <input type="file" id="qrImageInput" accept="image/*">
+                            <div class="input-with-icon qr-file-row">
+                                <label class="extension-file-picker" for="qrImageInput"><span class="extension-file-button" id="qrImageFileButton">Choose file</span><span id="qrImageFileName">No file selected</span></label>
+                                <input class="extension-file-native" type="file" id="qrImageInput" accept="image/*">
                             </div>
                             <div class="input-with-icon" style="margin-bottom: 1rem; position: relative;">
                                 <i class="fa-solid fa-qrcode"></i>
-                                <input type="text" id="qrTextInput" placeholder="أو أدخل محتوى الـ QR النصي مباشرة..." style="padding-left: 45px;">
+                                <input type="text" id="qrTextInput" placeholder="Or enter the QR code content directly..." style="padding-left: 45px;">
                                 <button type="button" class="btn-paste-icon" onclick="pasteClipboard('qrTextInput')" title="لصق من الحافظة">
                                     <i class="fa-solid fa-paste"></i>
                                 </button>
@@ -312,11 +350,11 @@
 
                     <div class="charts-grid-two">
                         <div class="chart-card glow-box">
-                            <h3><i class="fa-solid fa-chart-line"></i> معدل الفحوصات النشطة </h3>
+                            <h3><i class="fa-solid fa-chart-line"></i> Active Scans</h3>
                             <div class="chart-wrap"><canvas id="activityChart"></canvas></div>
                         </div>
                         <div class="chart-card glow-box">
-                            <h3><i class="fa-solid fa-chart-pie"></i> نسبة التهديدات المكتشفة </h3>
+                            <h3><i class="fa-solid fa-chart-pie"></i> Threat Detection Rate</h3>
                             <div class="chart-wrap"><canvas id="threatsChart"></canvas></div>
                         </div>
                     </div>
@@ -362,17 +400,27 @@
 
                             <div id="cryptoParams"></div>
 
+                            <div id="cryptoFileControls" style="display:none;">
+                                <label class="input-label" id="cryptoFileInputLabel" for="cryptoFileInput">اختار الملف المراد تشفيره</label>
+                                <input id="cryptoFileInput" class="crypto-file-input" type="file" />
+                                <div class="crypto-file-password-field">
+                                    <input id="cryptoFilePassword" type="password" autocomplete="new-password" placeholder="كلمة مرور قوية — 12 حرفًا على الأقل" minlength="12" />
+                                    <button type="button" class="crypto-password-visibility" id="cryptoFilePasswordToggle" onclick="toggleCryptoFilePassword()" aria-label="إظهار كلمة المرور" aria-pressed="false" title="إظهار كلمة المرور"><i class="fa-solid fa-eye"></i></button>
+                                </div>
+                                <p class="crypto-file-note" id="cryptoFileHint">الحد الأقصى 50 ميجابايت. احتفظ بكلمة المرور؛ لا توجد طريقة لاستعادتها إذا فُقدت.</p>
+                            </div>
+
                             <label class="input-label" id="cryptoTextLabel" for="cryptoText">Text</label>
-                            <div class="textarea-container">
+                            <div class="textarea-container" id="cryptoTextContainer">
                                 <textarea id="cryptoText" rows="4" dir="auto" style="height:110px;" placeholder="Enter text here... (Classical ciphers work on English letters A-Z and other characters are ignored)"></textarea>
                             </div>
 
                             <div class="crypto-actions">
                                 <button class="btn-scan" id="btnEncrypt" onclick="runCrypto('encrypt')">
-                                    <i class="fa-solid fa-lock"></i> Encrypt | تشفير
+                                    <i class="fa-solid fa-lock"></i> Encryption
                                 </button>
                                 <button class="btn-scan btn-decrypt" id="btnDecrypt" onclick="runCrypto('decrypt')">
-                                    <i class="fa-solid fa-lock-open"></i> Decrypt | فك التشفير
+                                    <i class="fa-solid fa-lock-open"></i> Decryption
                                 </button>
                             </div>
                             <div id="cryptoError" class="verdict bad" style="display:none; margin-top:14px;"></div>
@@ -388,8 +436,15 @@
                             <div id="cryptoExtras"></div>
                             <h3 class="crypto-steps-title"><i class="fa-solid fa-list-ol"></i> Solution Steps</h3>
                             <div class="crypto-steps" id="cryptoSteps"></div>
+                            <div id="cryptoFileDownloadWrap" class="crypto-file-download-wrap" style="display:none;">
+                                <button type="button" class="btn-scan" id="cryptoFileDownload" onclick="downloadCryptoFileResult()"><i class="fa-solid fa-download"></i> تنزيل الملف</button>
+                            </div>
                         </div>
                     </div>
+                </section>
+
+                <section id="labSection" class="content-section" style="display:none;">
+                    <div id="labRoot" class="lab-page" data-i18n-skip></div>
                 </section>
 
                 <!-- 3. لوحة تحكم الأدمن المتقدمة -->
@@ -455,15 +510,15 @@
                     <div class="charts-grid-two" style="margin-top: 1.2rem;">
                         <div class="chart-card glow-box">
                             <h3><i class="fa-solid fa-heart-pulse"></i> System Health</h3>
-                            <div class="meter"><div class="meter-top"><span>دقة نموذج كشف الروابط (URL Model Accuracy)</span><b>98.7%</b></div><div class="meter-bar"><i style="width:98.7%"></i></div></div><div class="meter"><div class="meter-top"><span>دقة تحليل الإيميلات (Email Model Accuracy)</span><b>96.4%</b></div><div class="meter-bar"><i style="width:96.4%"></i></div></div><div class="meter"><div class="meter-top"><span>سعة الخوادم المتاحة (Server Capacity)</span><b>82%</b></div><div class="meter-bar"><i style="width:82%"></i></div></div><div class="meter"><div class="meter-top"><span>نجاح الاستجابة (API Success Rate)</span><b>99.2%</b></div><div class="meter-bar"><i style="width:99.2%"></i></div></div>
+                            <div class="meter"><div class="meter-top"><span>دقة URL Model </span><b>98.7%</b></div><div class="meter-bar"><i style="width:98.7%"></i></div></div><div class="meter"><div class="meter-top"><span>دقة  Email Model </span><b>96.4%</b></div><div class="meter-bar"><i style="width:96.4%"></i></div></div><div class="meter"><div class="meter-top"><span>نجاح الاستجابة API Success Rate</span><b>99.2%</b></div><div class="meter-bar"><i style="width:99.2%"></i></div></div><div class="meter"><div class="meter-top"><span>دقة Cryptology Lab</span><b>99.8%</b></div><div class="meter-bar"><i style="width:99.8%"></i></div></div><div class="meter"><div class="meter-top"><span>دقة Website Scan</span><b>94.6%</b></div><div class="meter-bar"><i style="width:94.6%"></i></div></div>
                         </div>
                         <div class="chart-card glow-box">
-                            <h3><i class="fa-solid fa-bell"></i> Recent Alerts</h3>
+                            <h3><i class="fa-solid fa-layer-group"></i> Project Activity</h3>
                             <ul class="alert-feed">
-                                <li><span class="dot bad"></span><div><b>paypal-secure-login-verify.com</b><small>تصيد احتيالي | Phishing</small></div><em>منذ 3 دقائق</em></li>
-                                <li><span class="dot bad"></span><div><b>bank-account-update.net</b><small>انتحال جهة مصرفية | Spoofing</small></div><em>منذ 11 دقيقة</em></li>
-                                <li><span class="dot warn"></span><div><b>تحديث كلمة المرور فوراً (إيميل)</b><small>هندسة اجتماعية | Social Eng.</small></div><em>منذ 26 دقيقة</em></li>
-                                <li><span class="dot ok"></span><div><b>github.com</b><small>آمن | Safe</small></div><em>منذ 40 دقيقة</em></li>
+                                <li><span class="dot ok"></span><div><b>Smart Scan</b><small>1,842 فحص · 328 تهديدًا</small></div><em>Scan</em></li>
+                                <li><span class="dot ok"></span><div><b>Cryptology Lab</b><small>864 عملية · 592 تشفير · 272 فك تشفير</small></div><em>Crypto</em></li>
+                                <li><span class="dot warn"></span><div><b>Website Scan</b><small>237 فحص موقع · 79 ملاحظة أمنية</small></div><em>Web</em></li>
+                                <li><span class="dot warn"></span><div><b>Extension</b><small>612 إشعارًا · 612 صفحة محظورة</small></div><em>Extension</em></li>
                             </ul>
                         </div>
                     </div>
@@ -493,8 +548,8 @@
                 <section id="extensionSection" class="content-section" style="display: none;">
                     <div class="admin-top-banner">
                         <div>
-                            <h2> Browser Extension Management</h2>
-                            <p>خصّص أيقونة الإضافة ورسالة التحذير التي تظهر للمستخدمين عند رصد موقع خبيث، وشاهد الشكل النهائي مباشرة.</p>
+                            <h2 id="extensionManagementTitle">Browser Extension Management</h2>
+                            <p id="extensionManagementDescription">خصّص أيقونة الإضافة ورسالة التحذير التي تظهر للمستخدمين عند رصد موقع خبيث، وشاهد الشكل النهائي مباشرة.</p>
                         </div>
                         <span class="badge-admin-top"><i class="fa-solid fa-user-shield"></i> Admin Only</span>
                     </div>
@@ -506,20 +561,26 @@
                                 <label for="extIconInput">Extension Icon</label>
                                 <div class="ext-icon-row">
                                     <div class="ext-icon-preview" id="extIconPreview"><i class="fa-solid fa-shield-halved"></i></div>
-                                    <input type="file" id="extIconInput" accept="image/*">
+                                    <label class="extension-file-picker" for="extIconInput"><span class="extension-file-button" id="extIconFileButton">Choose file</span><span id="extIconFileName">No file chosen</span></label>
+                                    <input class="extension-file-native" type="file" id="extIconInput" accept="image/*">
                                 </div>
                             </div>
                             <div class="ext-setting">
-                                <label for="extAlertMessageInput">رسالة التنبيه عند رصد خطر | Alert Message</label>
-                                <input type="text" id="extAlertMessageInput" value="تحذير! موقع خبيث تم حظره بواسطة Cyber PhishShield">
+                                <label for="extAlertMessageInput">Alert Message</label>
+                                <input type="text" id="extAlertMessageInput" data-l10n-value value="Warning! Malicious site blocked by Cyber Shield">
                             </div>
                             <div class="ext-toggles">
-                                <label class="switch-row"><span><b>الحماية الفورية أثناء التصفح | Real-time Protection</b><small>فحص كل رابط قبل فتحه</small></span><input type="checkbox" checked><i class="switch-ui"></i></label>
-                                <label class="switch-row"><span><b>حظر الصفحات الخبيثة تلقائية | Auto-block Malware</b><small>عرض صفحة تحذير بدلاً من الموقع</small></span><input type="checkbox" checked><i class="switch-ui"></i></label>
-                                <label class="switch-row"><span><b>إشعارات سطح المكتب | Desktop Notifications</b><small>تنبيه عند رصد تهديد جديد</small></span><input type="checkbox" ><i class="switch-ui"></i></label>
+                                <div class="extension-option-row" id="extensionNotificationsOption">
+                                    <label class="switch-row" for="extensionNotificationsEnabled"><span><b id="extAlertsTitle">تنبيهات المواقع المشبوهة</b><small id="extAlertsDescription">إرسال إشعار لسطح المكتب عند اكتشاف موقع مشبوه</small></span><input type="checkbox" id="extensionNotificationsEnabled" checked><i class="switch-ui"></i></label>
+                                    <button type="button" class="extension-visibility-toggle" data-extension-visibility="notifications_visible" aria-expanded="true" title="Hide this option from Chrome extension"><i class="fa-solid fa-chevron-down"></i></button>
+                                </div>
+                                <div class="extension-option-row" id="extensionWarningOption">
+                                    <label class="switch-row" for="extensionWarningEnabled"><span><b id="extWarningTitle">صفحة التحذير</b><small id="extWarningDescription">اعرض صفحة تحذير قبل فتح موقع مشبوه</small></span><input type="checkbox" id="extensionWarningEnabled" checked><i class="switch-ui"></i></label>
+                                    <button type="button" class="extension-visibility-toggle" data-extension-visibility="warning_page_visible" aria-expanded="true" title="Hide this option from Chrome extension"><i class="fa-solid fa-chevron-down"></i></button>
+                                </div>
                             </div>
-                            <button class="btn-scan" onclick="alert('تم حفظ وتطبيق إعدادات الإضافة ورفع الأيقونة بنجاح!')">
-                                <i class="fa-solid fa-floppy-disk"></i> حفظ وتطبيق الإعدادات | Save & Apply
+                            <button class="btn-scan" id="extensionSettingsSave" onclick="saveExtensionSettings()">
+                                <i class="fa-solid fa-floppy-disk"></i> Save
                             </button>
                         </div>
 
@@ -530,7 +591,7 @@
                                 <div class="browser-body">
                                     <div class="warn-card">
                                         <i class="fa-solid fa-triangle-exclamation"></i>
-                                        <p id="extPreviewMsg">تحذير! موقع خبيث تم حظره بواسطة Cyber PhishShield</p>
+                                        <p id="extPreviewMsg">تحذير! موقع خبيث تم حظره بواسطة Cyber Shield</p>
                                         <small>تم إيقاف تحميل الصفحة لحمايتك</small>
                                     </div>
                                 </div>
@@ -559,7 +620,10 @@
         </div>
     </div>
 
-    <script src="crypto.js"></script>
-    <script src="app.js"></script>
+    <script src="crypto-files.js?v=crypto-result-removed-20261025-1"></script>
+    <script src="crypto.js?v=crypto-result-removed-20261025-1"></script>
+    <script src="i18n.js?v=extension-management-sync-20261025-4"></script>
+    <script src="lab.js?v=simulation-lab-1"></script>
+    <script src="app.js?v=extension-management-sync-20261025-4"></script>
 </body>
 </html>
